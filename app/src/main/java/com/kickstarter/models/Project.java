@@ -2,14 +2,12 @@ package com.kickstarter.models;
 
 import android.net.Uri;
 import android.os.Parcelable;
-import android.support.annotation.NonNull;
-import android.support.annotation.Nullable;
-import android.support.annotation.StringDef;
 
 import com.kickstarter.libs.Permission;
 import com.kickstarter.libs.qualifiers.AutoGson;
 import com.kickstarter.libs.utils.DateTimeUtils;
 import com.kickstarter.libs.utils.IntegerUtils;
+import com.kickstarter.libs.utils.UrlUtils;
 
 import org.joda.time.DateTime;
 
@@ -18,11 +16,15 @@ import java.lang.annotation.RetentionPolicy;
 import java.util.Collections;
 import java.util.List;
 
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.annotation.StringDef;
 import auto.parcel.AutoParcel;
 
 @AutoGson
 @AutoParcel
-public abstract class Project implements Parcelable {
+public abstract class Project implements Parcelable, Relay {
+  public abstract @Nullable List<String> availableCardTypes();
   public abstract int backersCount();
   public abstract String blurb();
   public abstract @Nullable Backing backing();
@@ -33,11 +35,13 @@ public abstract class Project implements Parcelable {
   public abstract User creator();
   public abstract String currency(); // e.g.: USD
   public abstract String currencySymbol(); // e.g.: $
+  public abstract String currentCurrency(); // e.g.: User's Preferred currency USD
   public abstract boolean currencyTrailingCode();
   public abstract @Nullable DateTime featuredAt();
   public abstract @Nullable List<User> friends();
+  public abstract Float fxRate();
   public abstract @Nullable DateTime deadline();
-  public abstract float goal();
+  public abstract double goal();
   public abstract long id(); // in the Kickstarter app, this is project.pid not project.id
   public abstract boolean isBacking();
   public abstract boolean isStarred();
@@ -46,13 +50,15 @@ public abstract class Project implements Parcelable {
   public abstract @Nullable Location location();
   public abstract String name();
   public abstract @Nullable List<Permission> permissions();
-  public abstract float pledged();
+  public abstract double pledged();
   public abstract @Nullable Photo photo();
+  public abstract @Nullable Boolean prelaunchActivated();
   public abstract @Nullable List<Reward> rewards();
   public abstract @Nullable String slug();
+  public abstract @Nullable Boolean staffPick();
   public abstract @State String state();
   public abstract @Nullable DateTime stateChangedAt();
-  public abstract @Nullable Float staticUsdRate();
+  public abstract Float staticUsdRate();
   public abstract @Nullable Integer unreadMessagesCount();
   public abstract @Nullable Integer unseenActivityCount();
   public abstract @Nullable Integer updatesCount();
@@ -62,6 +68,7 @@ public abstract class Project implements Parcelable {
 
   @AutoParcel.Builder
   public abstract static class Builder {
+    public abstract Builder availableCardTypes(List<String> __);
     public abstract Builder backersCount(int __);
     public abstract Builder blurb(String __);
     public abstract Builder backing(Backing __);
@@ -72,11 +79,13 @@ public abstract class Project implements Parcelable {
     public abstract Builder creator(User __);
     public abstract Builder currency(String __);
     public abstract Builder currencySymbol(String __);
+    public abstract Builder currentCurrency(String __);
     public abstract Builder currencyTrailingCode(boolean __);
     public abstract Builder deadline(DateTime __);
     public abstract Builder featuredAt(DateTime __);
     public abstract Builder friends(List<User> __);
-    public abstract Builder goal(float __);
+    public abstract Builder fxRate(Float __);
+    public abstract Builder goal(double __);
     public abstract Builder id(long __);
     public abstract Builder isBacking(boolean __);
     public abstract Builder isStarred(boolean __);
@@ -85,10 +94,12 @@ public abstract class Project implements Parcelable {
     public abstract Builder location(Location __);
     public abstract Builder name(String __);
     public abstract Builder permissions(List<Permission> __);
-    public abstract Builder pledged(float __);
+    public abstract Builder pledged(double __);
     public abstract Builder photo(Photo __);
+    public abstract Builder prelaunchActivated(Boolean __);
     public abstract Builder rewards(List<Reward> __);
     public abstract Builder slug(String __);
+    public abstract Builder staffPick(Boolean __);
     public abstract Builder staticUsdRate(Float __);
     public abstract Builder state(@State String __);
     public abstract Builder stateChangedAt(DateTime __);
@@ -186,17 +197,11 @@ public abstract class Project implements Parcelable {
       public abstract Builder toBuilder();
 
       public @NonNull String creatorBio() {
-        return Uri.parse(project())
-          .buildUpon()
-          .appendEncodedPath("/creator_bio")
-          .toString();
+        return UrlUtils.INSTANCE.appendPath(project(), "creator_bio");
       }
 
       public @NonNull String description() {
-        return Uri.parse(project())
-          .buildUpon()
-          .appendEncodedPath("/description")
-          .toString();
+        return UrlUtils.INSTANCE.appendPath(project(), "description");
       }
     }
 
@@ -301,7 +306,7 @@ public abstract class Project implements Parcelable {
 
   public float percentageFunded() {
     if (goal() > 0.0f) {
-      return (pledged() / goal()) * 100.0f;
+      return ((float) pledged() / (float) goal()) * 100.0f;
     }
 
     return 0.0f;

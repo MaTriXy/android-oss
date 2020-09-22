@@ -1,9 +1,7 @@
 package com.kickstarter.services;
 
-import android.support.annotation.NonNull;
-import android.support.annotation.Nullable;
-
 import com.google.gson.Gson;
+import com.google.gson.JsonObject;
 import com.kickstarter.libs.Config;
 import com.kickstarter.libs.rx.operators.ApiErrorOperator;
 import com.kickstarter.libs.rx.operators.Operators;
@@ -12,12 +10,12 @@ import com.kickstarter.models.Activity;
 import com.kickstarter.models.Backing;
 import com.kickstarter.models.Category;
 import com.kickstarter.models.Comment;
-import com.kickstarter.models.Empty;
 import com.kickstarter.models.Location;
 import com.kickstarter.models.Message;
 import com.kickstarter.models.MessageThread;
 import com.kickstarter.models.Project;
 import com.kickstarter.models.ProjectNotification;
+import com.kickstarter.models.Reward;
 import com.kickstarter.models.SurveyResponse;
 import com.kickstarter.models.Update;
 import com.kickstarter.models.User;
@@ -41,13 +39,17 @@ import com.kickstarter.services.apiresponses.MessageThreadEnvelope;
 import com.kickstarter.services.apiresponses.MessageThreadsEnvelope;
 import com.kickstarter.services.apiresponses.ProjectStatsEnvelope;
 import com.kickstarter.services.apiresponses.ProjectsEnvelope;
+import com.kickstarter.services.apiresponses.ShippingRulesEnvelope;
 import com.kickstarter.services.apiresponses.StarEnvelope;
+import com.kickstarter.services.apiresponses.UpdatesEnvelope;
 import com.kickstarter.ui.data.Mailbox;
 import com.kickstarter.ui.data.MessageSubject;
 
 import java.util.Arrays;
 import java.util.List;
 
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import retrofit2.Response;
 import rx.Observable;
 import rx.schedulers.Schedulers;
@@ -270,6 +272,14 @@ public final class ApiClient implements ApiClientType {
   }
 
   @Override
+  public @NonNull Observable<ShippingRulesEnvelope> fetchShippingRules(final @NonNull Project project, final @NonNull Reward reward) {
+    return this.service
+      .shippingRules(project.id(), reward.id())
+      .lift(apiErrorOperator())
+      .subscribeOn(Schedulers.io());
+  }
+
+  @Override
   public @NonNull Observable<SurveyResponse> fetchSurveyResponse(final long surveyResponseId) {
     return this.service
       .surveyResponse(surveyResponseId)
@@ -300,6 +310,22 @@ public final class ApiClient implements ApiClientType {
 
     return fetchUpdate(projectParam, updateParam)
       .startWith(update);
+  }
+
+  @Override
+  public @NonNull Observable<UpdatesEnvelope> fetchUpdates(final @NonNull Project project) {
+    return this.service
+            .updates(project.param())
+            .lift(apiErrorOperator())
+            .subscribeOn(Schedulers.io());
+  }
+
+  @Override
+  public @NonNull Observable<UpdatesEnvelope> fetchUpdates(final @NonNull String paginationPath) {
+    return this.service
+            .paginatedUpdates(paginationPath)
+            .lift(apiErrorOperator())
+            .subscribeOn(Schedulers.io());
   }
 
   @Override
@@ -367,7 +393,7 @@ public final class ApiClient implements ApiClientType {
   }
 
   @Override
-  public @NonNull Observable<Empty> registerPushToken(final @NonNull String token) {
+  public @NonNull Observable<JsonObject> registerPushToken(final @NonNull String token) {
     return this.service
       .registerPushToken(PushTokenBody.builder().token(token).pushServer("development").build())
       .lift(apiErrorOperator())
@@ -477,17 +503,34 @@ public final class ApiClient implements ApiClientType {
       .updateUserSettings(
         SettingsBody.builder()
           .optedOutOfRecommendations(isTrue(user.optedOutOfRecommendations()) ? 1 : 0)
+          .notifyMobileOfBackings(isTrue(user.notifyMobileOfBackings()))
+          .notifyMobileOfComments(isTrue(user.notifyMobileOfComments()))
+          .notifyMobileOfCreatorEdu(isTrue(user.notifyMobileOfCreatorEdu()))
           .notifyMobileOfFollower(isTrue(user.notifyMobileOfFollower()))
           .notifyMobileOfFriendActivity(isTrue(user.notifyMobileOfFriendActivity()))
           .notifyMobileOfMessages(isTrue(user.notifyMobileOfMessages()))
+          .notifyMobileOfPostLikes(isTrue(user.notifyMobileOfPostLikes()))
           .notifyMobileOfUpdates(isTrue(user.notifyMobileOfUpdates()))
+          .notifyOfBackings(isTrue(user.notifyOfBackings()))
+          .notifyOfComments(isTrue(user.notifyOfComments()))
+          .notifyOfCommentReplies(isTrue(user.notifyOfCommentReplies()))
+          .notifyOfCreatorDigest(isTrue(user.notifyOfCreatorDigest()))
+          .notifyOfCreatorEdu(isTrue(user.notifyOfCreatorEdu()))
           .notifyOfFollower(isTrue(user.notifyOfFollower()))
           .notifyOfFriendActivity(isTrue(user.notifyOfFriendActivity()))
           .notifyOfMessages(isTrue(user.notifyOfMessages()))
           .notifyOfUpdates(isTrue(user.notifyOfUpdates()))
+          .alumniNewsletter(isTrue(user.alumniNewsletter()) ? 1 : 0)
+          .artsCultureNewsletter(isTrue(user.artsCultureNewsletter()) ? 1 : 0)
+          .filmNewsletter(isTrue(user.filmNewsletter()) ? 1 : 0)
           .gamesNewsletter(isTrue(user.gamesNewsletter()) ? 1 : 0)
           .happeningNewsletter(isTrue(user.happeningNewsletter()) ? 1 : 0)
+          .inventNewsletter(isTrue(user.inventNewsletter()) ? 1 : 0)
+          .musicNewsletter(isTrue(user.musicNewsletter()) ? 1 : 0)
           .promoNewsletter(isTrue(user.promoNewsletter()) ? 1 : 0)
+          .publishingNewsletter(isTrue(user.publishingNewsletter()) ? 1 : 0)
+          .showPublicProfile(isTrue(user.showPublicProfile()) ? 1 : 0)
+          .social(isTrue(user.social()) ? 1 : 0)
           .weeklyNewsletter(isTrue(user.weeklyNewsletter()) ? 1 : 0)
           .build())
       .lift(apiErrorOperator())

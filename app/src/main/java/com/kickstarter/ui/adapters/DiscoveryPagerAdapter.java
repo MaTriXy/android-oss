@@ -1,9 +1,5 @@
 package com.kickstarter.ui.adapters;
 
-import android.support.annotation.NonNull;
-import android.support.v4.app.Fragment;
-import android.support.v4.app.FragmentManager;
-import android.support.v4.app.FragmentPagerAdapter;
 import android.view.ViewGroup;
 
 import com.kickstarter.libs.utils.DiscoveryUtils;
@@ -14,6 +10,10 @@ import com.kickstarter.ui.fragments.DiscoveryFragment;
 
 import java.util.List;
 
+import androidx.annotation.NonNull;
+import androidx.fragment.app.Fragment;
+import androidx.fragment.app.FragmentManager;
+import androidx.fragment.app.FragmentPagerAdapter;
 import rx.Observable;
 
 public final class DiscoveryPagerAdapter extends FragmentPagerAdapter {
@@ -54,7 +54,7 @@ public final class DiscoveryPagerAdapter extends FragmentPagerAdapter {
 
   @Override
   public int getCount() {
-    return DiscoveryParams.Sort.values().length;
+    return DiscoveryParams.Sort.defaultSorts.length;
   }
 
   @Override
@@ -102,5 +102,16 @@ public final class DiscoveryPagerAdapter extends FragmentPagerAdapter {
         return pages.contains(fragmentPosition);
       })
       .subscribe(DiscoveryFragment::clearPage);
+  }
+
+  public void scrollToTop(final int position) {
+    Observable.from(this.fragments)
+      .filter(DiscoveryFragment::isInstantiated)
+      .filter(DiscoveryFragment::isAttached)
+      .filter(frag -> {
+        final int fragmentPosition = frag.getArguments().getInt(ArgumentsKey.DISCOVERY_SORT_POSITION);
+        return position == fragmentPosition;
+      })
+      .subscribe(DiscoveryFragment::scrollToTop);
   }
 }

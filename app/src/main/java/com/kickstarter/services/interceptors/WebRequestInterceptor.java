@@ -1,16 +1,16 @@
 package com.kickstarter.services.interceptors;
 
 import android.net.Uri;
-import android.support.annotation.NonNull;
 
-import com.kickstarter.libs.AndroidPayCapability;
 import com.kickstarter.libs.Build;
 import com.kickstarter.libs.CurrentUserType;
 import com.kickstarter.libs.InternalToolsType;
+import com.kickstarter.libs.utils.WebUtils;
 import com.kickstarter.services.KSUri;
 
 import java.io.IOException;
 
+import androidx.annotation.NonNull;
 import okhttp3.Interceptor;
 import okhttp3.Request;
 import okhttp3.Response;
@@ -25,16 +25,13 @@ public final class WebRequestInterceptor implements Interceptor {
   private final @NonNull String endpoint;
   private final @NonNull InternalToolsType internalTools;
   private final @NonNull Build build;
-  private final @NonNull AndroidPayCapability androidPayCapability;
 
   public WebRequestInterceptor(final @NonNull CurrentUserType currentUser, final @NonNull String endpoint,
-    final InternalToolsType internalTools, final @NonNull Build build,
-    final @NonNull AndroidPayCapability androidPayCapability) {
+    final @NonNull InternalToolsType internalTools, final @NonNull Build build) {
     this.currentUser = currentUser;
     this.endpoint = endpoint;
     this.internalTools = internalTools;
     this.build = build;
-    this.androidPayCapability = androidPayCapability;
   }
 
   @Override
@@ -48,16 +45,13 @@ public final class WebRequestInterceptor implements Interceptor {
     }
 
     final Request.Builder requestBuilder = initialRequest.newBuilder()
-      .header("User-Agent", userAgent(this.build));
+      .header("User-Agent", WebUtils.INSTANCE.userAgent(this.build));
 
     final String basicAuthorizationHeader = this.internalTools.basicAuthorizationHeader();
     if (this.currentUser.exists()) {
       requestBuilder.addHeader("Authorization", "token " + this.currentUser.getAccessToken());
     } else if (shouldAddBasicAuthorizationHeader(initialRequest) && isNotNull(basicAuthorizationHeader)) {
       requestBuilder.addHeader("Authorization", basicAuthorizationHeader);
-    }
-    if (this.androidPayCapability.isCapable()) {
-      requestBuilder.addHeader("Kickstarter-Android-Pay", "1");
     }
 
     return requestBuilder.build();
@@ -74,17 +68,4 @@ public final class WebRequestInterceptor implements Interceptor {
     final Uri initialRequestUri = Uri.parse(request.url().toString());
     return KSUri.isHivequeenUri(initialRequestUri, this.endpoint) || KSUri.isStagingUri(initialRequestUri, this.endpoint);
   }
-
-  public static @NonNull String userAgent(final @NonNull Build build) {
-    // TODO: Check whether device is mobile or tablet, append to user agent
-    return new StringBuilder()
-      .append("Kickstarter Android Mobile Variant/")
-      .append(build.variant())
-      .append(" Code/")
-      .append(build.versionCode())
-      .append(" Version/")
-      .append(build.versionName())
-      .toString();
-  }
 }
-

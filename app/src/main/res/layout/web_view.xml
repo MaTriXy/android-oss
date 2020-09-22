@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+  xmlns:app="http://schemas.android.com/apk/res-auto"
+  android:layout_width="match_parent"
+  android:layout_height="match_parent"
+  android:animateLayoutChanges="true"
+  android:orientation="vertical"
+  app:layout_behavior="@string/appbar_scrolling_view_behavior">
+
+  <WebView
+    android:id="@+id/internal_web_view"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent" />
+
+  <include
+    android:id="@+id/web_view_progress"
+    layout="@layout/loading_overlay"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent" />
+
+  <include android:id="@+id/web_view_error"
+    layout="@layout/retry_container"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"/>
+</FrameLayout>

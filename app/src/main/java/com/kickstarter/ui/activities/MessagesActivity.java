@@ -2,11 +2,6 @@ package com.kickstarter.ui.activities;
 
 import android.content.Intent;
 import android.os.Bundle;
-import android.support.annotation.NonNull;
-import android.support.annotation.Nullable;
-import android.support.design.widget.AppBarLayout;
-import android.support.v7.widget.LinearLayoutManager;
-import android.support.v7.widget.RecyclerView;
 import android.text.Html;
 import android.util.Pair;
 import android.view.View;
@@ -15,6 +10,7 @@ import android.widget.Button;
 import android.widget.EditText;
 import android.widget.TextView;
 
+import com.google.android.material.appbar.AppBarLayout;
 import com.jakewharton.rxbinding.view.RxView;
 import com.kickstarter.R;
 import com.kickstarter.libs.BaseActivity;
@@ -32,6 +28,12 @@ import com.kickstarter.ui.adapters.MessagesAdapter;
 import com.kickstarter.ui.views.IconButton;
 import com.kickstarter.viewmodels.MessagesViewModel;
 
+import java.math.RoundingMode;
+
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
 import butterknife.Bind;
 import butterknife.BindDimen;
 import butterknife.BindString;
@@ -106,7 +108,7 @@ public final class MessagesActivity extends BaseActivity<MessagesViewModel.ViewM
     this.viewModel.outputs.backingInfoViewIsGone()
       .compose(bindToLifecycle())
       .compose(observeForUI())
-      .subscribe(ViewUtils.setGone(this.backingInfoView));
+      .subscribe(gone -> ViewUtils.setGone(this.backingInfoView, gone));
 
     this.viewModel.outputs.closeButtonIsGone()
       .compose(bindToLifecycle())
@@ -252,7 +254,7 @@ public final class MessagesActivity extends BaseActivity<MessagesViewModel.ViewM
   }
 
   private void setBackingInfoView(final @NonNull Pair<Backing, Project> backingAndProject) {
-    final String pledgeAmount = this.ksCurrency.format(backingAndProject.first.amount(), backingAndProject.second);
+    final String pledgeAmount = this.ksCurrency.format(backingAndProject.first.amount(), backingAndProject.second, RoundingMode.HALF_UP);
     final String pledgeDate = DateTimeUtils.relative(this, this.ksString, backingAndProject.first.pledgedAt());
 
     this.backingAmountTextViewText.setText(

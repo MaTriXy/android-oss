@@ -1,7 +1,5 @@
 package com.kickstarter.viewmodels;
 
-import android.support.annotation.NonNull;
-import android.support.annotation.Nullable;
 import android.util.Pair;
 
 import com.kickstarter.libs.ActivityViewModel;
@@ -31,6 +29,8 @@ import com.kickstarter.ui.data.MessagesData;
 
 import java.util.List;
 
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import rx.Notification;
 import rx.Observable;
 import rx.subjects.BehaviorSubject;
@@ -151,9 +151,9 @@ public interface MessagesViewModel {
         .map(i -> {
           final MessageThread messageThread = i.getParcelableExtra(IntentKey.MESSAGE_THREAD);
           return messageThread != null
-            ? new Either.Left<MessageThread, Pair<Project, Backing>>(messageThread)
-            : new Either.Right<MessageThread, Pair<Project, Backing>>(
-              Pair.create(i.getParcelableExtra(IntentKey.PROJECT), i.getParcelableExtra(IntentKey.BACKING))
+            ? new Either.Left<>(messageThread)
+            : new Either.Right<>(
+            Pair.create(i.getParcelableExtra(IntentKey.PROJECT), i.getParcelableExtra(IntentKey.BACKING))
           );
         });
 
@@ -171,8 +171,8 @@ public interface MessagesViewModel {
         .filter(ObjectUtils::isNotNull);
 
       final Observable<Either<Backing, MessageThread>> backingOrThread = Observable.merge(
-        configBacking.map(backing -> new Either.Left<>(backing)),
-        configThread.map(thread -> new Either.Right<>(thread))
+        configBacking.map(Either.Left::new),
+        configThread.map(Either.Right::new)
       );
 
       final PublishSubject<Boolean> messageIsSending = PublishSubject.create();
@@ -346,6 +346,7 @@ public interface MessagesViewModel {
         .compose(errors())
         .map(ErrorEnvelope::fromThrowable)
         .map(ErrorEnvelope::errorMessage)
+        .compose(bindToLifecycle())
         .subscribe(this.showMessageErrorToast::onNext);
 
       project
@@ -353,13 +354,10 @@ public interface MessagesViewModel {
         .compose(bindToLifecycle())
         .subscribe(this.projectNameTextViewText::onNext);
 
-      Observable.combineLatest(messageThreadEnvelope, this.currentUser.observable(), Pair::create)
+      messageThreadEnvelope
+        .compose(combineLatestPair(messagesData))
         .compose(takeWhen(this.viewPledgeButtonClicked))
-        .map(eu ->
-          eu.first.messageThread().project().isBacking()
-            ? Pair.create(eu.first.messageThread().project(), eu.second)
-            : Pair.create(eu.first.messageThread().project(), eu.first.messageThread().participant())
-        )
+        .map(this::projectAndBacker)
         .compose(bindToLifecycle())
         .subscribe(this.startBackingActivity::onNext);
 
@@ -400,6 +398,12 @@ public interface MessagesViewModel {
             .take(1);
         }
       );
+    }
+
+    private Pair<Project, User> projectAndBacker(final @NonNull Pair<MessageThreadEnvelope, MessagesData> envelopeAndData) {
+      final Project project = envelopeAndData.second.getProject();
+      final User backer = project.isBacking() ? envelopeAndData.second.getCurrentUser() : envelopeAndData.first.messageThread().participant();
+      return Pair.create(project, backer);
     }
 
     private final PublishSubject<Integer> appBarOffset = PublishSubject.create();

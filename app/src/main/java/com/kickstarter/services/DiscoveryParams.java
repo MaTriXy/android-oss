@@ -4,8 +4,6 @@ import android.annotation.SuppressLint;
 import android.content.Context;
 import android.net.Uri;
 import android.os.Parcelable;
-import android.support.annotation.NonNull;
-import android.support.annotation.Nullable;
 
 import com.kickstarter.R;
 import com.kickstarter.libs.KSString;
@@ -14,11 +12,14 @@ import com.kickstarter.libs.utils.ObjectUtils;
 import com.kickstarter.models.Category;
 import com.kickstarter.models.Location;
 import com.kickstarter.models.Project;
+import com.kickstarter.models.User;
 
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import auto.parcel.AutoParcel;
 
 import static com.kickstarter.libs.utils.BooleanUtils.isFalse;
@@ -42,46 +43,51 @@ public abstract class DiscoveryParams implements Parcelable {
   public abstract @Nullable Boolean recommended();
   public abstract @Nullable Project similarTo();
   public abstract @Nullable State state();
+  public abstract @Nullable Integer tagId();
   public abstract @Nullable String term();
 
   public enum Sort {
-    HOME, POPULAR, NEWEST, ENDING_SOON, MOST_FUNDED;
+    MAGIC, POPULAR, NEWEST, ENDING_SOON, DISTANCE;
     @Override
     public @NonNull String toString() {
       switch (this) {
-        case HOME:
-          return "home";
+        case MAGIC:
+          return "magic";
         case POPULAR:
           return "popularity";
         case NEWEST:
           return "newest";
         case ENDING_SOON:
           return "end_date";
-        case MOST_FUNDED:
-          return "most_funded";
+        case DISTANCE:
+          return "distance";
       }
       return "";
     }
 
+    public static Sort[] defaultSorts = {
+      MAGIC, POPULAR, NEWEST, ENDING_SOON
+    };
+
     public static @Nullable Sort fromString(final @NonNull String string) {
       switch (string) {
-        case "home":
-          return HOME;
+        case "magic":
+          return MAGIC;
         case "popularity":
           return POPULAR;
         case "newest":
           return NEWEST;
         case "end_date":
           return ENDING_SOON;
-        case "most_funded":
-          return MOST_FUNDED;
+        case "distance":
+          return DISTANCE;
       }
-      return HOME;
+      return MAGIC;
     }
 
     public @NonNull String refTagSuffix() {
       switch (this) {
-        case HOME:
+        case MAGIC:
           return "";
         case POPULAR:
           return "_popular";
@@ -89,8 +95,8 @@ public abstract class DiscoveryParams implements Parcelable {
           return "_newest";
         case ENDING_SOON:
           return "_ending_soon";
-        case MOST_FUNDED:
-          return "_most_funded";
+        case DISTANCE:
+          return "_distance";
         default:
           return "";
       }
@@ -141,10 +147,6 @@ public abstract class DiscoveryParams implements Parcelable {
 
     if (KSUri.isDiscoverScopePath(uri.getPath(), "ending-soon")) {
       builder = builder.sort(Sort.ENDING_SOON);
-    }
-
-    if (KSUri.isDiscoverScopePath(uri.getPath(), "most-funded")) {
-      builder = builder.sort(Sort.MOST_FUNDED);
     }
 
     if (KSUri.isDiscoverScopePath(uri.getPath(), "newest")) {
@@ -231,6 +233,11 @@ public abstract class DiscoveryParams implements Parcelable {
       builder = builder.state(State.fromString(stateParam));
     }
 
+    final Integer tagId =  ObjectUtils.toInteger(uri.getQueryParameter("tag_id"));
+    if (tagId != null) {
+      builder = builder.tagId(tagId);
+    }
+
     final String term = uri.getQueryParameter("term");
     if (term != null) {
       builder = builder.term(term);
@@ -256,6 +263,7 @@ public abstract class DiscoveryParams implements Parcelable {
     public abstract Builder recommended(Boolean __);
     public abstract Builder similarTo(Project __);
     public abstract Builder state(State __);
+    public abstract Builder tagId(Integer __);
     public abstract Builder term(String __);
     public abstract DiscoveryParams build();
 
@@ -308,6 +316,9 @@ public abstract class DiscoveryParams implements Parcelable {
       }
       if (other.similarTo() != null) {
         retVal = retVal.similarTo(other.similarTo());
+      }
+      if (other.tagId() != null) {
+        retVal = retVal.tagId(other.tagId());
       }
       if (other.term() != null) {
         retVal = retVal.term(other.term());
@@ -395,6 +406,11 @@ public abstract class DiscoveryParams implements Parcelable {
           put("state", state.toString());
         }
 
+        final Integer tagId = tagId();
+        if (tagId != null) {
+          put("tag_id", tagId.toString());
+        }
+
         if (term() != null) {
           put("q", term());
         }
@@ -411,7 +427,7 @@ public abstract class DiscoveryParams implements Parcelable {
    * featured project for the category comes back.
    */
   public boolean shouldIncludeFeatured() {
-    return category() != null && category().parent() == null && page() != null && page() == 1 && (sort() == null || sort() == Sort.HOME);
+    return category() != null && category().parent() == null && page() != null && page() == 1 && (sort() == null || sort() == Sort.MAGIC);
   }
 
   @Override
@@ -456,13 +472,34 @@ public abstract class DiscoveryParams implements Parcelable {
     }
   }
 
+  public static DiscoveryParams getDefaultParams(final @Nullable User user) {
+    final Builder builder = DiscoveryParams.builder();
+    if (user != null && isFalse(user.optedOutOfRecommendations())) {
+      builder.recommended(true).backed(-1);
+    }
+    return builder
+      .sort(Sort.MAGIC)
+      .build();
+  }
+
   /**
    * Determines if params are for All Projects, i.e. discovery without params.
    * @return true if is All Projects.
    */
   public boolean isAllProjects() {
     return isFalse(staffPicks()) && (starred() == null || starred() != 1) && (backed() == null || backed() != 1)
-      && (social() == null || social() != 1) && category() == null && location() == null && isFalse(recommended());
+      && (social() == null || social() != 1) && category() == null && location() == null && isFalse(recommended())
+      && (tagId() == null);
+  }
+
+  /**
+   * Determines if params are for Saved Projects, i.e. discovery with starred params.
+   * @return true if is Saved Projects.
+   */
+  public boolean isSavedProjects() {
+    return isTrue(starred() != null && starred() == 1) && isFalse(staffPicks()) && (backed() == null || backed() != 1)
+      && (social() == null || social() != 1) && category() == null && location() == null && isFalse(recommended())
+      && (tagId() == null);
   }
 
   public boolean isCategorySet() {

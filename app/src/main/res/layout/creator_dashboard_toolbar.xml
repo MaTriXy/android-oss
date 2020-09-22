@@ -1,15 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
-<android.support.design.widget.AppBarLayout
+<com.google.android.material.appbar.AppBarLayout
   android:id="@+id/creator_dashboard_app_bar"
   xmlns:android="http://schemas.android.com/apk/res/android"
   xmlns:app="http://schemas.android.com/apk/res-auto"
   xmlns:tools="http://schemas.android.com/tools"
   android:layout_width="match_parent"
   android:layout_height="wrap_content"
+  android:background="@color/white"
   android:fitsSystemWindows="true"
   tools:showIn="@layout/creator_dashboard_layout">
 
-  <android.support.design.widget.CollapsingToolbarLayout
+  <com.google.android.material.appbar.CollapsingToolbarLayout
     android:id="@+id/creator_dashboard_collapsing_toolbar"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
@@ -43,15 +44,9 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content">
 
-        <ImageButton
-          android:id="@+id/back_button"
-          android:layout_width="wrap_content"
-          android:layout_height="match_parent"
-          android:background="@drawable/click_indicator_light"
-          android:contentDescription="@string/general_navigation_accessibility_button_navigate_back_label"
-          android:focusable="true"
-          android:padding="@dimen/grid_2"
-          android:src="@drawable/ic_action_icon__arrow_left" />
+        <com.kickstarter.ui.views.IconButton
+          style="@style/ToolbarIconBackButton"
+          android:id="@+id/back_button" />
 
         <TextView
           android:id="@+id/creator_dashboard_project_name_small"
@@ -66,5 +61,5 @@
       </RelativeLayout>
 
     </com.kickstarter.ui.toolbars.KSToolbar>
-  </android.support.design.widget.CollapsingToolbarLayout>
-</android.support.design.widget.AppBarLayout>
+  </com.google.android.material.appbar.CollapsingToolbarLayout>
+</com.google.android.material.appbar.AppBarLayout>

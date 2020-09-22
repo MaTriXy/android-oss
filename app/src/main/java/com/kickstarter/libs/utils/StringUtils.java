@@ -1,12 +1,16 @@
 package com.kickstarter.libs.utils;
 
-import android.support.annotation.NonNull;
-import android.support.annotation.Nullable;
 import android.util.Patterns;
 
 import java.util.Locale;
 
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+
 public final class StringUtils {
+
+  public static final int MINIMUM_PASSWORD_LENGTH = 6;
+
   private StringUtils() {}
 
   public static boolean isEmail(final @NonNull CharSequence str) {
@@ -21,6 +25,10 @@ public final class StringUtils {
     return !isEmpty(str);
   }
 
+  public static boolean isValidPassword(final @Nullable String str) {
+    return !isEmpty(str) && str.length() > 5;
+  }
+
   /**
    * Returns a string with only the first character capitalized.
    */
@@ -28,6 +36,13 @@ public final class StringUtils {
     return str.length() <= 1
       ? str.toUpperCase(Locale.getDefault())
       : str.substring(0, 1).toUpperCase(Locale.getDefault()) + str.substring(1).toLowerCase(Locale.getDefault());
+  }
+
+  /**
+   * Returns a string with no leading or trailing whitespace.
+   */
+  public static String trim(final @NonNull String str) {
+    return str.replace('\u00A0', ' ').trim().replaceAll(" +", " ");
   }
 
   /**

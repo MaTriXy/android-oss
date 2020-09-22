@@ -1,22 +1,17 @@
 package com.kickstarter.ui.adapters;
 
-import android.support.annotation.LayoutRes;
-import android.support.annotation.NonNull;
-import android.util.Pair;
 import android.view.View;
 
 import com.kickstarter.R;
-import com.kickstarter.libs.utils.RewardUtils;
-import com.kickstarter.models.Project;
-import com.kickstarter.models.Reward;
+import com.kickstarter.ui.data.ProjectData;
+import com.kickstarter.ui.viewholders.EmptyViewHolder;
 import com.kickstarter.ui.viewholders.KSViewHolder;
 import com.kickstarter.ui.viewholders.ProjectViewHolder;
-import com.kickstarter.ui.viewholders.RewardViewHolder;
 
 import java.util.Collections;
-import java.util.List;
 
-import rx.Observable;
+import androidx.annotation.LayoutRes;
+import androidx.annotation.NonNull;
 
 public final class ProjectAdapter extends KSAdapter {
   private final Delegate delegate;
@@ -31,25 +26,16 @@ public final class ProjectAdapter extends KSAdapter {
     if (sectionRow.section() == 0) {
       return R.layout.project_main_layout;
     } else {
-      return R.layout.reward_view;
+      return R.layout.empty_view;
     }
   }
 
   /**
-   * Populate adapter data when we know we're working with a Project object.
+   * Populate adapter data when we know we're working with a ProjectData object.
    */
-  public void takeProject(final @NonNull Project project, final @NonNull String configCountry) {
+  public void takeProject(final @NonNull ProjectData projectData) {
     sections().clear();
-    sections().add(Collections.singletonList(Pair.create(project, configCountry)));
-
-    final List<Reward> rewards = project.rewards();
-    if (rewards != null) {
-      addSection(Observable.from(rewards)
-        .filter(RewardUtils::isReward)
-        .map(reward -> Pair.create(project, reward))
-        .toList().toBlocking().single()
-      );
-    }
+    sections().add(Collections.singletonList(projectData));
     notifyDataSetChanged();
   }
 
@@ -57,6 +43,6 @@ public final class ProjectAdapter extends KSAdapter {
     if (layout == R.layout.project_main_layout) {
       return new ProjectViewHolder(view, this.delegate);
     }
-    return new RewardViewHolder(view);
+    return new EmptyViewHolder(view);
   }
 }

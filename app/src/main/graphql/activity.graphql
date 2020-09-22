@@ -1,0 +1,19 @@
+mutation ClearUserUnseenActivity {
+  clearUserUnseenActivity(input : {}) {
+  activityIndicatorCount
+ }
+}
+
+query ErroredBackings {
+  me {
+    backings(status:errored) {
+      nodes {
+        project {
+          finalCollectionDate
+          name
+          slug
+        }
+      }
+    }
+  }
+}

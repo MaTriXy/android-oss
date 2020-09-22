@@ -1,21 +1,24 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
   <!-- Theme colors -->
-  <color name="primary">@color/white</color>
-  <color name="primary_dark">@color/black_alpha_17</color>
-  <color name="accent">@color/ksr_green_700</color>
+  <color name="primary">@color/ksr_green_500</color>
+  <color name="primary_dark">@color/ksr_green_700</color>
+  <color name="accent">@color/primary</color>
   <color name="text_primary">@color/ksr_soft_black</color>
   <color name="text_secondary">@color/ksr_dark_grey_500</color>
   <color name="window_background">@color/white</color>
-  <color name="status_bar">@color/primary_dark</color>
+  <color name="status_bar">@color/ksr_grey_300</color>
 
-  <!-- Kickstarter colors. NB: we should be transitioning to using this color palette. -->
+  <!-- Legacy Kickstarter colors -->
   <color name="black">@android:color/black</color>
+  <color name="ksr_apricot_500">#FFCBA9</color>
+  <color name="ksr_apricot_600">#F0AE81</color>
   <color name="ksr_cobalt_500">#4C6CF8</color>
   <color name="ksr_cobalt_600">#395AEB</color>
   <color name="ksr_dark_grey_400">#9B9E9E</color>
   <color name="ksr_dark_grey_500">#656969</color>
   <color name="ksr_highlighter_green">#05F2BA</color>
+  <color name="ksr_green_200">#57BFA4</color>
   <color name="ksr_green_500">#009E74</color>
   <color name="ksr_green_700">#037362</color>
   <color name="ksr_green_800">#034752</color>
@@ -27,9 +30,14 @@
   <color name="ksr_orange">#FF4F00</color>
   <color name="ksr_red_400">#FF5151</color>
   <color name="ksr_soft_black">#282828</color>
+  <color name="ksr_teal_500">#05F2BA</color>
   <color name="ksr_text_green_700">@color/ksr_green_700</color>
   <color name="white">@android:color/white</color>
   <color name="transparent">@android:color/transparent</color>
+
+  <!-- KDS  -->
+  <color name="trust_700">#0A007D</color>
+  <color name="celebrate_500">#F97B62</color>
 
   <!-- Colors with hex opacity:
     http://stackoverflow.com/questions/5445085/understanding-colors-in-android-6-characters/11019879#11019879 -->
@@ -38,12 +46,16 @@
   <color name="black_alpha_10">#1a000000</color>
   <color name="black_alpha_17">#2B000000</color>
   <color name="black_alpha_30">#4D000000</color>
-  <color name="black_alpha_50">#88000000</color>
+  <color name="black_alpha_40">#66000000</color>
+  <color name="black_alpha_50">#80000000</color>
+  <color name="blue_alpha_6">#0f2b60ff</color>
   <color name="blue_darken_10">@color/ksr_cobalt_600</color>
   <color name="gray_alpha_50">@color/ksr_grey_300</color>
   <color name="gray_darken_10">@color/ksr_grey_500</color>
-  <color name="green_alpha_20">#33037362</color>
-  <color name="green_alpha_50">#80037362</color>
+  <color name="green_alpha_6">#0F009E74</color>
+  <color name="green_alpha_10">#1A009E74</color>
+  <color name="green_alpha_20">#33009E74</color>
+  <color name="green_alpha_50">#80009E74</color>
   <color name="green_darken_10">@color/soft_black_alpha_17</color>
   <color name="soft_black_alpha_17">#2B282828</color>
   <color name="white_alpha_60">#99ffffff</color>
@@ -62,5 +74,5 @@
   <color name="discovery_drawer_header">@color/white</color>
 
   <!-- Third-party colors -->
-  <color name="facebook_blue">#3b5998</color>
+  <color name="facebook_blue">#1877F2</color>
 </resources>

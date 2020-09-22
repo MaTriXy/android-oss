@@ -1,16 +1,14 @@
 package com.kickstarter.viewmodels;
 
-import android.support.annotation.NonNull;
-
 import com.kickstarter.KSRobolectricTestCase;
-import com.kickstarter.factories.DiscoverEnvelopeFactory;
-import com.kickstarter.factories.ProjectFactory;
 import com.kickstarter.libs.Environment;
 import com.kickstarter.libs.KoalaEvent;
 import com.kickstarter.libs.RefTag;
+import com.kickstarter.mock.factories.DiscoverEnvelopeFactory;
+import com.kickstarter.mock.factories.ProjectFactory;
+import com.kickstarter.mock.services.MockApiClient;
 import com.kickstarter.models.Project;
 import com.kickstarter.services.DiscoveryParams;
-import com.kickstarter.services.MockApiClient;
 import com.kickstarter.services.apiresponses.DiscoverEnvelope;
 
 import org.junit.Test;
@@ -19,6 +17,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
+import androidx.annotation.NonNull;
 import rx.Observable;
 import rx.observers.TestSubscriber;
 import rx.schedulers.TestScheduler;
@@ -64,51 +63,41 @@ public class SearchViewModelTest extends KSRobolectricTestCase {
     this.popularProjectsPresent.assertValues(true);
     this.searchProjectsPresent.assertNoValues();
     this.koalaTest.assertValues(KoalaEvent.VIEWED_SEARCH, KoalaEvent.DISCOVER_SEARCH_LEGACY);
+    this.lakeTest.assertValues("Search Button Clicked", "Search Page Viewed");
 
     // Searching shouldn't emit values immediately
     this.vm.inputs.search("hello");
     this.searchProjectsPresent.assertNoValues();
     this.koalaTest.assertValues(KoalaEvent.VIEWED_SEARCH, KoalaEvent.DISCOVER_SEARCH_LEGACY);
+    this.lakeTest.assertValues("Search Button Clicked", "Search Page Viewed");
 
     // Waiting a small amount time shouldn't emit values
     scheduler.advanceTimeBy(200, TimeUnit.MILLISECONDS);
     this.searchProjectsPresent.assertNoValues();
     this.koalaTest.assertValues(KoalaEvent.VIEWED_SEARCH, KoalaEvent.DISCOVER_SEARCH_LEGACY);
+    this.lakeTest.assertValues("Search Button Clicked", "Search Page Viewed");
 
     // Waiting the rest of the time makes the search happen
-    scheduler.advanceTimeBy(100, TimeUnit.MILLISECONDS);
+    scheduler.advanceTimeBy(300, TimeUnit.MILLISECONDS);
     this.searchProjectsPresent.assertValues(false, true);
-    this.koalaTest.assertValues(
-      KoalaEvent.VIEWED_SEARCH, KoalaEvent.DISCOVER_SEARCH_LEGACY,
-      KoalaEvent.LOADED_SEARCH_RESULTS, KoalaEvent.DISCOVER_SEARCH_RESULTS_LEGACY
-    );
+    scheduler.advanceTimeBy(300, TimeUnit.MILLISECONDS);
+    this.lakeTest.assertValues("Search Button Clicked", "Search Page Viewed");
 
     // Typing more search terms doesn't emit more values
     this.vm.inputs.search("hello world!");
     this.searchProjectsPresent.assertValues(false, true);
-    this.koalaTest.assertValues(
-      KoalaEvent.VIEWED_SEARCH, KoalaEvent.DISCOVER_SEARCH_LEGACY,
-      KoalaEvent.LOADED_SEARCH_RESULTS, KoalaEvent.DISCOVER_SEARCH_RESULTS_LEGACY
-    );
+    scheduler.advanceTimeBy(300, TimeUnit.MILLISECONDS);
+    this.lakeTest.assertValues("Search Button Clicked", "Search Page Viewed", "Search Results Loaded");
 
     // Waiting enough time emits search results
-    scheduler.advanceTimeBy(300, TimeUnit.MILLISECONDS);
+    scheduler.advanceTimeBy(500, TimeUnit.MILLISECONDS);
     this.searchProjectsPresent.assertValues(false, true, false, true);
-    this.koalaTest.assertValues(
-      KoalaEvent.VIEWED_SEARCH, KoalaEvent.DISCOVER_SEARCH_LEGACY,
-      KoalaEvent.LOADED_SEARCH_RESULTS, KoalaEvent.DISCOVER_SEARCH_RESULTS_LEGACY,
-      KoalaEvent.LOADED_SEARCH_RESULTS, KoalaEvent.DISCOVER_SEARCH_RESULTS_LEGACY
-    );
 
     // Clearing search terms brings back popular projects.
     this.vm.inputs.search("");
+
     this.searchProjectsPresent.assertValues(false, true, false, true, false);
     this.popularProjectsPresent.assertValues(true, false, true);
-    this.koalaTest.assertValues(
-      KoalaEvent.VIEWED_SEARCH, KoalaEvent.DISCOVER_SEARCH_LEGACY,
-      KoalaEvent.LOADED_SEARCH_RESULTS, KoalaEvent.DISCOVER_SEARCH_RESULTS_LEGACY,
-      KoalaEvent.LOADED_SEARCH_RESULTS, KoalaEvent.DISCOVER_SEARCH_RESULTS_LEGACY,
-      KoalaEvent.CLEARED_SEARCH_TERM);
   }
 
   @Test
@@ -122,25 +111,16 @@ public class SearchViewModelTest extends KSRobolectricTestCase {
 
     this.searchProjectsPresent.assertNoValues();
     this.koalaTest.assertValues(KoalaEvent.VIEWED_SEARCH, KoalaEvent.DISCOVER_SEARCH_LEGACY);
+    this.lakeTest.assertValues("Search Button Clicked", "Search Page Viewed");
 
     this.vm.inputs.search("cats");
 
     scheduler.advanceTimeBy(300, TimeUnit.MILLISECONDS);
 
     this.searchProjectsPresent.assertValues(false, true);
-    this.koalaTest.assertValues(
-      KoalaEvent.VIEWED_SEARCH, KoalaEvent.DISCOVER_SEARCH_LEGACY,
-      KoalaEvent.LOADED_SEARCH_RESULTS, KoalaEvent.DISCOVER_SEARCH_RESULTS_LEGACY
-    );
 
     this.vm.inputs.nextPage();
-
     this.searchProjectsPresent.assertValues(false, true);
-    this.koalaTest.assertValues(
-      KoalaEvent.VIEWED_SEARCH, KoalaEvent.DISCOVER_SEARCH_LEGACY,
-      KoalaEvent.LOADED_SEARCH_RESULTS, KoalaEvent.DISCOVER_SEARCH_RESULTS_LEGACY,
-      KoalaEvent.LOADED_MORE_SEARCH_RESULTS, KoalaEvent.DISCOVER_SEARCH_RESULTS_LOAD_MORE_LEGACY
-    );
   }
 
   @Test

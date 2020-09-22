@@ -33,6 +33,7 @@
   <dimen name="grid_40">240dp</dimen>
   <dimen name="grid_41">246dp</dimen>
   <dimen name="grid_46">276dp</dimen>
+  <dimen name="grid_49">294dp</dimen>
   <dimen name="grid_57">342dp</dimen>
 
   <!-- Typography-->
@@ -45,6 +46,7 @@
   <dimen name="headline">18sp</dimen>
   <dimen name="title_3">20sp</dimen>
   <dimen name="title_2">22sp</dimen>
+  <dimen name="title_reward">24sp</dimen>
   <dimen name="title_1">28sp</dimen>
   <dimen name="title_thank_you">36sp</dimen>
 
@@ -66,11 +68,11 @@
   <dimen name="project_card_margin_top">@dimen/grid_4</dimen>
   <dimen name="project_card_margin_bottom">@dimen/grid_1</dimen>
   <dimen name="profile_card_height">178dp</dimen>
+  <dimen name="editorial_radius">8dp</dimen>
+  <dimen name="stored_card_radius">@dimen/grid_1</dimen>
 
   <!-- Discovery drawer -->
   <dimen name="discovery_drawer_filter_padding_y">14dp</dimen>
-  <dimen name="discovery_drawer_status_bar_height">0dp</dimen>
-  <dimen name="discovery_drawer_status_bar_height_negative">0dp</dimen>
 
   <!-- Layout padding -->
   <dimen name="activity_padding_x">0dp</dimen>
@@ -95,8 +97,6 @@
   <dimen name="settings_icon_fixed_width">@dimen/grid_8</dimen>
   <dimen name="button_corner_radius">@dimen/grid_1_half</dimen>
   <dimen name="button_stroke_width">1dp</dimen>
-  <dimen name="progress_bar_min_height">@dimen/grid_1_half</dimen>
-  <dimen name="progress_bar_height">@dimen/grid_1_half</dimen>
   <dimen name="project_action_button_height">@dimen/grid_8</dimen>
 
   <!-- Photos -->
@@ -117,8 +117,10 @@
   <dimen name="profile_avatar_height">@dimen/profile_avatar_width</dimen>
   <dimen name="profile_card_photo_height">90dp</dimen>
   <dimen name="profile_card_photo_width">160dp</dimen>
-  <dimen name="project_avatar_width">18dp</dimen>
-  <dimen name="project_avatar_height">18dp</dimen>
+  <dimen name="project_avatar_width">@dimen/grid_7</dimen>
+  <dimen name="project_avatar_height">@dimen/grid_7</dimen>
+  <dimen name="project_avatar_check_width">13dp</dimen>
+  <dimen name="project_avatar_check_height">13dp</dimen>
   <dimen name="project_card_photo_landscape_height">135dp</dimen>
   <dimen name="project_card_photo_landscape_width">240dp</dimen>
   <dimen name="project_social_photo_height">@dimen/grid_5</dimen>
@@ -132,7 +134,8 @@
   <dimen name="text_view_corner_radius">@dimen/grid_1_half</dimen>
 
   <!-- Toolbars -->
-  <dimen name="toolbar_elevation">@dimen/grid_1_half</dimen>
+  <dimen name="ks_toolbar_height">56dp</dimen>
+  <dimen name="ks_toolbar_elevation">@dimen/grid_1_half</dimen>
 
   <!-- Activity feed view -->
   <dimen name="activity_feed_view_margin_top">0dp</dimen>
@@ -140,7 +143,7 @@
 
   <!-- Messages -->
   <dimen name="message_card_view_corner_radius">4dp</dimen>
-  <dimen name="message_reply_layout_height">@dimen/grid_10</dimen>
+  <dimen name="message_reply_layout_height">@dimen/grid_8</dimen>
 
   <!-- Popup menus -->
   <dimen name="popup_menu_horizontal_offset">-151dp</dimen>
@@ -152,5 +155,44 @@
 
   <!-- Sort tabs -->
   <dimen name="sort_tab_divider_margin_top_negative">-0.5dp</dimen>
+
+  <!-- Default screen margins, per the Android Design guidelines. -->
+  <dimen name="activity_horizontal_margin">16dp</dimen>
+  <dimen name="activity_vertical_margin">16dp</dimen>
+
+  <!-- Payment Methods -->
+  <dimen name="credit_card_logo_height">40dp</dimen>
+  <dimen name="credit_card_logo_width">64dp</dimen>
+  <dimen name="credit_card_logo_margin_top">20dp</dimen>
+  <dimen name="credit_card_last_expiration_date_margin_top">4dp</dimen>
+  <dimen name="delete_card_image_height">24dp</dimen>
+  <dimen name="delete_card_image_width">24dp</dimen>
+  <dimen name="delete_card_image_margin_top">24dp</dimen>
+  <dimen name="payment_methods_list_item_8dp">8dp</dimen>
+
+  <!-- Native Checkout -->
+  <dimen name="fab_radius">@dimen/grid_5</dimen>
+  <dimen name="reward_card_radius">@dimen/grid_2</dimen>
+  <dimen name="circle_width">4dp</dimen>
+  <dimen name="circle_radius">4dp</dimen>
+  <dimen name="indicator_radius">4dp</dimen>
+  <dimen name="pledge_margin">@dimen/grid_4</dimen>
+  <dimen name="mini_reward_width">@dimen/grid_15</dimen>
+  <dimen name="item_reward_width">@dimen/grid_49</dimen>
+  <dimen name="reward_margin">@dimen/grid_3</dimen>
+  <dimen name="reward_fragment_guideline_constraint_end">100dp</dimen>
+  <dimen name="fragment_rewards_parent_min_height">@dimen/grid_20</dimen>
+  <dimen name="mini_reward_height">@dimen/grid_20</dimen>
+  <dimen name="mini_reward_elevation">8dp</dimen>
+  <dimen name="plus_sign_height">20dp</dimen>
+  <dimen name="plus_sign_width">9dp</dimen>
+  <dimen name="autocomplete_drop_down_width">265dp</dimen>
+  <dimen name="card_container_radius">@dimen/grid_5</dimen>
+  <dimen name="unselected_card_stroke_width">2dp</dimen>
+
+  <!--  Progress Bars -->
+  <dimen name="indeterminate_horizontal_progress_bar_margin_top">-6dp</dimen>
+  <dimen name="progress_bar_min_height">@dimen/grid_1_half</dimen>
+  <dimen name="progress_bar_height">@dimen/grid_1_half</dimen>
 
 </resources>

@@ -2,10 +2,6 @@ package com.kickstarter.ui.activities;
 
 import android.content.Intent;
 import android.os.Bundle;
-import android.support.annotation.NonNull;
-import android.support.annotation.Nullable;
-import android.support.v7.widget.LinearLayoutManager;
-import android.support.v7.widget.RecyclerView;
 import android.util.Pair;
 import android.view.View;
 import android.widget.Button;
@@ -25,10 +21,14 @@ import com.kickstarter.libs.utils.ViewUtils;
 import com.kickstarter.models.Backing;
 import com.kickstarter.models.Project;
 import com.kickstarter.ui.IntentKey;
-import com.kickstarter.ui.adapters.RewardsItemAdapter;
+import com.kickstarter.ui.adapters.RewardItemsAdapter;
 import com.kickstarter.viewmodels.BackingViewModel;
 import com.squareup.picasso.Picasso;
 
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
 import butterknife.Bind;
 import butterknife.BindString;
 import butterknife.ButterKnife;
@@ -79,8 +79,8 @@ public final class BackingActivity extends BaseActivity<BackingViewModel.ViewMod
     setContentView(R.layout.backing_layout);
     ButterKnife.bind(this);
 
-    final RewardsItemAdapter rewardsItemAdapter = new RewardsItemAdapter();
-    this.rewardsItemRecyclerView.setAdapter(rewardsItemAdapter);
+    final RewardItemsAdapter rewardItemsAdapter = new RewardItemsAdapter();
+    this.rewardsItemRecyclerView.setAdapter(rewardItemsAdapter);
     final LinearLayoutManager layoutManager = new LinearLayoutManager(this);
     this.rewardsItemRecyclerView.setLayoutManager(layoutManager);
 
@@ -155,7 +155,7 @@ public final class BackingActivity extends BaseActivity<BackingViewModel.ViewMod
     this.viewModel.outputs.rewardsItemList()
       .compose(bindToLifecycle())
       .compose(observeForUI())
-      .subscribe(rewardsItemAdapter::rewardsItems);
+      .subscribe(rewardItemsAdapter::rewardsItems);
 
     this.viewModel.outputs.rewardsItemsAreGone()
       .compose(bindToLifecycle())

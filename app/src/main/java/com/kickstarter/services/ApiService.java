@@ -1,13 +1,10 @@
 package com.kickstarter.services;
 
-import android.support.annotation.NonNull;
-import android.support.annotation.Nullable;
-
+import com.google.gson.JsonObject;
 import com.kickstarter.libs.Config;
 import com.kickstarter.models.Backing;
 import com.kickstarter.models.Category;
 import com.kickstarter.models.Comment;
-import com.kickstarter.models.Empty;
 import com.kickstarter.models.Location;
 import com.kickstarter.models.Message;
 import com.kickstarter.models.MessageThread;
@@ -36,11 +33,15 @@ import com.kickstarter.services.apiresponses.MessageThreadEnvelope;
 import com.kickstarter.services.apiresponses.MessageThreadsEnvelope;
 import com.kickstarter.services.apiresponses.ProjectStatsEnvelope;
 import com.kickstarter.services.apiresponses.ProjectsEnvelope;
+import com.kickstarter.services.apiresponses.ShippingRulesEnvelope;
 import com.kickstarter.services.apiresponses.StarEnvelope;
+import com.kickstarter.services.apiresponses.UpdatesEnvelope;
 
 import java.util.List;
 import java.util.Map;
 
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import retrofit2.Response;
 import retrofit2.http.Body;
 import retrofit2.http.GET;
@@ -152,7 +153,7 @@ public interface ApiService {
   Observable<Response<ProjectStatsEnvelope>> projectStats(@Path("project_param") String projectParam);
 
   @POST("/v1/users/self/push_tokens")
-  Observable<Response<Empty>> registerPushToken(@Body PushTokenBody body);
+  Observable<Response<JsonObject>> registerPushToken(@Body PushTokenBody body);
 
   @POST("/v1/users/reset")
   Observable<Response<User>> resetPassword(@Body ResetPasswordBody body);
@@ -167,6 +168,9 @@ public interface ApiService {
 
   @POST("/v1/projects/{project_id}/messages")
   Observable<Response<Message>> sendMessageToProject(@Path("project_id") long projectId, @Body MessageBody body);
+
+  @GET("/v1/projects/{project_id}/rewards/{reward_id}/shipping_rules")
+  Observable<Response<ShippingRulesEnvelope>> shippingRules(@Path("project_id") long projectId, @Path("reward_id") long rewardId);
 
   @POST("/v1/users")
   Observable<Response<AccessTokenEnvelope>> signup(@Body SignupBody body);
@@ -188,6 +192,12 @@ public interface ApiService {
 
   @GET("/v1/projects/{project_id}/updates/{update_id}/comments")
   Observable<Response<CommentsEnvelope>> updateComments(@Path("project_id") long projectId, @Path("update_id") long updateId);
+
+  @GET("/v1/projects/{project_param}/updates")
+  Observable<Response<UpdatesEnvelope>> updates(@Path("project_param") String projectParam);
+
+  @GET
+  Observable<Response<UpdatesEnvelope>> paginatedUpdates(@Url String paginationUrl);
 
   @PUT("/v1/users/self/notifications/{id}")
   Observable<Response<ProjectNotification>> updateProjectNotifications(@Path("id") long projectNotificationId,

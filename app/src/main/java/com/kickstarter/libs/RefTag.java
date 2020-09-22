@@ -1,10 +1,10 @@
 package com.kickstarter.libs;
 
 import android.os.Parcelable;
-import android.support.annotation.NonNull;
 
 import com.kickstarter.services.DiscoveryParams;
 
+import androidx.annotation.NonNull;
 import auto.parcel.AutoParcel;
 
 /**
@@ -43,8 +43,16 @@ public abstract class RefTag implements Parcelable {
     return new AutoParcel_RefTag("city");
   }
 
+  public static @NonNull RefTag collection(final int tagId) {
+    return new AutoParcel_RefTag("android_project_collection_tag_" + tagId);
+  }
+
   public static @NonNull RefTag dashboard() {
     return new AutoParcel_RefTag("dashboard");
+  }
+
+  public static @NonNull RefTag deepLink() {
+    return new AutoParcel_RefTag("android_deep_link");
   }
 
   public static @NonNull RefTag discovery() {
@@ -53,6 +61,10 @@ public abstract class RefTag implements Parcelable {
 
   public static @NonNull RefTag pledgeInfo() {
     return new AutoParcel_RefTag("pledge_info");
+  }
+
+  public static @NonNull RefTag projectShare() {
+    return new AutoParcel_RefTag("android_project_share");
   }
 
   public static @NonNull RefTag push() {
@@ -95,7 +107,23 @@ public abstract class RefTag implements Parcelable {
     return new AutoParcel_RefTag("thanks");
   }
 
+  public static @NonNull RefTag thanksFacebookShare() {
+    return new AutoParcel_RefTag("android_thanks_facebook_share");
+  }
+
+  public static @NonNull RefTag thanksTwitterShare() {
+    return new AutoParcel_RefTag("android_thanks_twitter_share");
+  }
+
+  public static @NonNull RefTag thanksShare() {
+    return new AutoParcel_RefTag("android_thanks_share");
+  }
+
   public static @NonNull RefTag update() {
     return new AutoParcel_RefTag("update");
+  }
+
+  public static @NonNull RefTag updateShare() {
+    return new AutoParcel_RefTag("android_update_share");
   }
 }

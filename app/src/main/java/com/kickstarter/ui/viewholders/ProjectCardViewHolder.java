@@ -1,9 +1,6 @@
 package com.kickstarter.ui.viewholders;
 
 import android.graphics.drawable.Drawable;
-import android.support.annotation.NonNull;
-import android.support.annotation.Nullable;
-import android.support.v4.content.ContextCompat;
 import android.text.SpannableString;
 import android.text.style.ForegroundColorSpan;
 import android.util.Pair;
@@ -23,11 +20,15 @@ import com.kickstarter.libs.utils.ProjectUtils;
 import com.kickstarter.libs.utils.SocialUtils;
 import com.kickstarter.libs.utils.ViewUtils;
 import com.kickstarter.models.Project;
+import com.kickstarter.services.DiscoveryParams;
 import com.kickstarter.viewmodels.ProjectCardHolderViewModel;
 import com.squareup.picasso.Picasso;
 
 import org.joda.time.DateTime;
 
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.core.content.ContextCompat;
 import butterknife.Bind;
 import butterknife.BindColor;
 import butterknife.BindDimen;
@@ -42,7 +43,6 @@ import static com.kickstarter.libs.utils.ViewUtils.getScreenWidthDp;
 public final class ProjectCardViewHolder extends KSViewHolder {
   private final ProjectCardHolderViewModel.ViewModel viewModel;
   private final KSString ksString;
-  private final Delegate delegate;
 
   protected @Bind(R.id.backers_count) TextView backersCountTextView;
   protected @Bind(R.id.backing_group) ViewGroup backingViewGroup;
@@ -61,6 +61,8 @@ public final class ProjectCardViewHolder extends KSViewHolder {
   protected @Bind(R.id.funding_unsuccessful_text_view) TextView fundingUnsuccessfulTextView;
   protected @Bind(R.id.funding_unsuccessful_date_text_view) TextView fundingUnsuccessfulTextViewDate;
   protected @Nullable @Bind(R.id.land_card_view_group) ViewGroup landCardViewGroup;
+  protected @Bind(R.id.location_container) ViewGroup locationContainer;
+  protected @Bind(R.id.location_text_view) TextView locationTextView;
   protected @Bind(R.id.name_and_blurb_text_view) TextView nameAndBlurbTextView;
   protected @Bind(R.id.percent) TextView percentTextView;
   protected @Bind(R.id.percentage_funded) ProgressBar percentageFundedProgressBar;
@@ -68,6 +70,10 @@ public final class ProjectCardViewHolder extends KSViewHolder {
   protected @Bind(R.id.project_card_view_group) ViewGroup projectCardViewGroup;
   protected @Bind(R.id.project_card_stats_view_group) ViewGroup projectCardStatsViewGroup;
   protected @Bind(R.id.project_metadata_view_group) ViewGroup projectMetadataViewGroup;
+  protected @Bind(R.id.project_card_tags) ViewGroup projectTagContainerIsGone;
+  protected @Bind(R.id.project_we_love_container) ViewGroup projectWeLoveContainer;
+  protected @Bind(R.id.subcategory_container) ViewGroup subcategoryContainer;
+  protected @Bind(R.id.subcategory_text_view) TextView subcategoryTextView;
   protected @Bind(R.id.project_state_view_group) ViewGroup projectStateViewGroup;
   protected @Bind(R.id.saved_view_group) ViewGroup savedViewGroup;
 
@@ -94,7 +100,6 @@ public final class ProjectCardViewHolder extends KSViewHolder {
 
   public ProjectCardViewHolder(final @NonNull View view, final @NonNull Delegate delegate) {
     super(view);
-    this.delegate = delegate;
     this.ksString = environment().ksString();
     this.viewModel = new ProjectCardHolderViewModel.ViewModel(environment());
 
@@ -167,6 +172,16 @@ public final class ProjectCardViewHolder extends KSViewHolder {
       .compose(observeForUI())
       .subscribe(ViewUtils.setInvisible(this.photoImageView));
 
+    this.viewModel.outputs.locationName()
+      .compose(bindToLifecycle())
+      .compose(observeForUI())
+      .subscribe(this.locationTextView::setText);
+
+    this.viewModel.outputs.locationContainerIsGone()
+      .compose(bindToLifecycle())
+      .compose(observeForUI())
+      .subscribe(ViewUtils.setGone(this.locationContainer));
+
     this.viewModel.outputs.nameAndBlurbText()
       .compose(bindToLifecycle())
       .compose(observeForUI())
@@ -217,6 +232,16 @@ public final class ProjectCardViewHolder extends KSViewHolder {
       .compose(observeForUI())
       .subscribe(ViewUtils.setGone(this.projectStateViewGroup));
 
+    this.viewModel.outputs.projectSubcategoryName()
+      .compose(bindToLifecycle())
+      .compose(observeForUI())
+      .subscribe(this::setSubcategoryTextView);
+
+    this.viewModel.outputs.projectSubcategoryIsGone()
+      .compose(bindToLifecycle())
+      .compose(observeForUI())
+      .subscribe(ViewUtils.setGone(this.subcategoryContainer));
+
     this.viewModel.outputs.projectSuccessfulAt()
       .compose(bindToLifecycle())
       .compose(observeForUI())
@@ -226,6 +251,16 @@ public final class ProjectCardViewHolder extends KSViewHolder {
       .compose(bindToLifecycle())
       .compose(observeForUI())
       .subscribe(this::setSuspendedAtTextView);
+
+    this.viewModel.outputs.projectTagContainerIsGone()
+      .compose(bindToLifecycle())
+      .compose(observeForUI())
+      .subscribe(ViewUtils.setGone(this.projectTagContainerIsGone));
+
+    this.viewModel.outputs.projectWeLoveIsGone()
+      .compose(bindToLifecycle())
+      .compose(observeForUI())
+      .subscribe(ViewUtils.setGone(this.projectWeLoveContainer));
 
     this.viewModel.outputs.rootCategoryNameForFeatured()
       .compose(bindToLifecycle())
@@ -259,11 +294,14 @@ public final class ProjectCardViewHolder extends KSViewHolder {
       .compose(observeForUI())
       .subscribe(this::setDefaultTopPadding);
   }
+  private void setSubcategoryTextView(final @NonNull String subcategory) {
+    this.subcategoryTextView.setText(subcategory);
+  }
 
   @Override
   public void bindData(final @Nullable Object data) throws Exception {
-    final Project project = ObjectUtils.requireNonNull((Project) data);
-    this.viewModel.inputs.configureWith(project);
+    final Pair<Project, DiscoveryParams> projectAndParams = ObjectUtils.requireNonNull((Pair<Project, DiscoveryParams>) data);
+    this.viewModel.inputs.configureWith(projectAndParams);
   }
 
   private void setStyledNameAndBlurb(final @NonNull Pair<String, String> nameAndBlurb) {

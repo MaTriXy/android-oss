@@ -1,21 +1,39 @@
 package com.kickstarter.libs.utils;
 
 import android.content.Context;
-import android.support.annotation.NonNull;
-import android.support.annotation.Nullable;
-import android.view.View;
-import android.widget.Button;
+import android.util.Pair;
 
 import com.kickstarter.R;
 import com.kickstarter.libs.KSString;
 import com.kickstarter.models.Project;
 import com.kickstarter.models.User;
+import com.kickstarter.services.DiscoveryParams;
 
 import org.joda.time.DateTime;
 import org.joda.time.Duration;
 
+import java.util.ArrayList;
+import java.util.List;
+
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import type.CreditCardTypes;
+
 public final class ProjectUtils {
   private ProjectUtils() {}
+
+  public static boolean acceptedCardType(final @NonNull CreditCardTypes type, final @NonNull Project project) {
+    final List<String> availableCardTypes = project.availableCardTypes();
+    return availableCardTypes != null && availableCardTypes.contains(type.rawValue());
+  }
+
+  public static List<Pair<Project, DiscoveryParams>> combineProjectsAndParams(final @NonNull List<Project> projects, final @NonNull DiscoveryParams params) {
+    final ArrayList<Pair<Project, DiscoveryParams>> projectAndParams = new ArrayList<>(projects.size());
+    for (int i = 0; i < projects.size(); i++) {
+      projectAndParams.add(Pair.create(projects.get(i), params));
+    }
+    return projectAndParams;
+  }
 
   /**
    * Returns time until project reaches deadline along with the unit,
@@ -117,27 +135,10 @@ public final class ProjectUtils {
   }
 
   /**
-   * Set correct button view based on project and backing status.
+   * Returns time between project launch and deadline.
    */
-  public static void setActionButton(final @NonNull Project project, final @NonNull Button backProjectButton,
-    final @NonNull Button managePledgeButton, final @NonNull Button viewPledgeButton) {
-    if (!project.isBacking() && project.isLive()) {
-      backProjectButton.setVisibility(View.VISIBLE);
-    } else {
-      backProjectButton.setVisibility(View.GONE);
-    }
-
-    if (project.isBacking() && project.isLive()) {
-      managePledgeButton.setVisibility(View.VISIBLE);
-    } else {
-      managePledgeButton.setVisibility(View.GONE);
-    }
-
-    if (project.isBacking() && !project.isLive()) {
-      viewPledgeButton.setVisibility(View.VISIBLE);
-    } else {
-      viewPledgeButton.setVisibility(View.GONE);
-    }
+  public static @NonNull Long timeInSecondsOfDuration(final @NonNull Project project) {
+    return new Duration(project.launchedAt(), project.deadline()).getStandardSeconds();
   }
 
   /**
@@ -149,8 +150,8 @@ public final class ProjectUtils {
       new Duration(new DateTime(), project.deadline()).getStandardSeconds());
   }
 
-  public static boolean userIsCreator(final @NonNull Project project, final @NonNull User user) {
-    return project.creator().id() == user.id();
+  public static boolean userIsCreator(final @NonNull Project project, final @Nullable User user) {
+    return user == null ? false : project.creator().id() == user.id();
   }
 
   public static boolean isUSUserViewingNonUSProject(final @NonNull String userCountry, final @NonNull String projectCountry) {

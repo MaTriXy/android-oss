@@ -1,26 +1,17 @@
 package com.kickstarter;
 
-import android.content.Context;
-import android.support.annotation.CallSuper;
-import android.support.annotation.NonNull;
-import android.support.multidex.MultiDex;
-import android.support.multidex.MultiDexApplication;
 import android.text.TextUtils;
 
-import com.facebook.FacebookSdk;
-import com.google.android.gms.iid.InstanceID;
-import com.kickstarter.libs.ApiCapabilities;
+import com.crashlytics.android.Crashlytics;
+import com.google.firebase.FirebaseApp;
+import com.google.firebase.analytics.FirebaseAnalytics;
+import com.google.firebase.iid.FirebaseInstanceId;
 import com.kickstarter.libs.ApiEndpoint;
-import com.kickstarter.libs.Build;
 import com.kickstarter.libs.PushNotifications;
 import com.kickstarter.libs.utils.ApplicationLifecycleUtil;
 import com.kickstarter.libs.utils.Secrets;
-import com.squareup.leakcanary.LeakCanary;
-import com.squareup.leakcanary.RefWatcher;
 
 import net.danlew.android.joda.JodaTimeAndroid;
-import net.hockeyapp.android.CrashManager;
-import net.hockeyapp.android.CrashManagerListener;
 
 import org.joda.time.DateTime;
 
@@ -32,11 +23,14 @@ import java.util.UUID;
 
 import javax.inject.Inject;
 
+import androidx.annotation.CallSuper;
+import androidx.multidex.MultiDex;
+import androidx.multidex.MultiDexApplication;
+import io.fabric.sdk.android.Fabric;
 import timber.log.Timber;
 
 public class KSApplication extends MultiDexApplication {
   private ApplicationComponent component;
-  private RefWatcher refWatcher;
   @Inject protected CookieManager cookieManager;
   @Inject protected PushNotifications pushNotifications;
 
@@ -45,32 +39,27 @@ public class KSApplication extends MultiDexApplication {
   public void onCreate() {
     super.onCreate();
 
-    // Send crash reports in release builds
-    if (!BuildConfig.DEBUG && !isInUnitTests()) {
-      checkForCrashes();
-    }
-
     MultiDex.install(this);
 
     // Only log for internal builds
-    if (BuildConfig.FLAVOR_AUDIENCE.equals("internal")) {
+    if (BuildConfig.FLAVOR.equals("internal")) {
       Timber.plant(new Timber.DebugTree());
     }
 
-    if (!isInUnitTests() && ApiCapabilities.canDetectMemoryLeaks()) {
-      this.refWatcher = LeakCanary.install(this);
-    }
-
     JodaTimeAndroid.init(this);
+    Fabric.with(this, new Crashlytics());
 
     this.component = DaggerApplicationComponent.builder()
       .applicationModule(new ApplicationModule(this))
       .build();
     component().inject(this);
 
-    setVisitorCookie();
+    FirebaseApp.initializeApp(this);
+    FirebaseAnalytics.getInstance(this).setAnalyticsCollectionEnabled(true);
 
-    FacebookSdk.sdkInitialize(this);
+    if (!isInUnitTests()) {
+      setVisitorCookie();
+    }
 
     this.pushNotifications.initialize();
 
@@ -83,30 +72,12 @@ public class KSApplication extends MultiDexApplication {
     return this.component;
   }
 
-  public static RefWatcher getRefWatcher(final @NonNull Context context) {
-    final KSApplication application = (KSApplication) context.getApplicationContext();
-    return application.refWatcher;
-  }
-
   public boolean isInUnitTests() {
     return false;
   }
 
-  private void checkForCrashes() {
-    final String appId = Build.isExternal()
-      ? Secrets.HockeyAppId.EXTERNAL
-      : Secrets.HockeyAppId.INTERNAL;
-
-    CrashManager.register(this, appId, new CrashManagerListener() {
-      public boolean shouldAutoUploadCrashes() {
-        return true;
-      }
-    });
-  }
-
-
   private void setVisitorCookie() {
-    final String deviceId = InstanceID.getInstance(this).getId();
+    final String deviceId = FirebaseInstanceId.getInstance().getId();
     final String uniqueIdentifier = TextUtils.isEmpty(deviceId) ? UUID.randomUUID().toString() : deviceId;
     final HttpCookie cookie = new HttpCookie("vis", uniqueIdentifier);
     cookie.setMaxAge(DateTime.now().plusYears(100).getMillis());

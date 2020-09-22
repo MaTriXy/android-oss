@@ -1,21 +1,26 @@
 package com.kickstarter.libs;
 
+import android.content.BroadcastReceiver;
 import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
 import android.os.Bundle;
-import android.support.annotation.CallSuper;
-import android.support.annotation.NonNull;
-import android.support.annotation.Nullable;
-import android.support.v4.app.Fragment;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 
 import com.kickstarter.libs.qualifiers.RequiresFragmentViewModel;
 import com.kickstarter.libs.utils.BundleUtils;
+import com.kickstarter.ui.data.ActivityResult;
 import com.trello.rxlifecycle.FragmentEvent;
 import com.trello.rxlifecycle.RxLifecycle;
 import com.trello.rxlifecycle.components.FragmentLifecycleProvider;
 
+import androidx.annotation.CallSuper;
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.fragment.app.Fragment;
+import androidx.fragment.app.FragmentActivity;
 import rx.Observable;
 import rx.subjects.BehaviorSubject;
 import timber.log.Timber;
@@ -26,6 +31,12 @@ public class BaseFragment<ViewModelType extends FragmentViewModel> extends Fragm
   private final BehaviorSubject<FragmentEvent> lifecycle = BehaviorSubject.create();
   private static final String VIEW_MODEL_KEY = "FragmentViewModel";
   protected ViewModelType viewModel;
+  private final BroadcastReceiver optimizelyReadyReceiver = new BroadcastReceiver() {
+    @Override
+    public void onReceive(final Context context, final Intent intent) {
+      BaseFragment.this.viewModel.optimizelyReady();
+    }
+  };
 
   /**
    * Returns an observable of the fragment's lifecycle events.
@@ -109,6 +120,11 @@ public class BaseFragment<ViewModelType extends FragmentViewModel> extends Fragm
     assignViewModel(null);
     if (this.viewModel != null) {
       this.viewModel.onResume(this);
+
+      final FragmentActivity activity = getActivity();
+      if (activity != null) {
+        activity.registerReceiver(this.optimizelyReadyReceiver, new IntentFilter(ExperimentsClientTypeKt.EXPERIMENTS_CLIENT_READY));
+      }
     }
   }
 
@@ -121,6 +137,11 @@ public class BaseFragment<ViewModelType extends FragmentViewModel> extends Fragm
 
     if (this.viewModel != null) {
       this.viewModel.onPause();
+
+      final FragmentActivity activity = getActivity();
+      if (activity != null) {
+        activity.unregisterReceiver(this.optimizelyReadyReceiver);
+      }
     }
   }
 
@@ -188,6 +209,14 @@ public class BaseFragment<ViewModelType extends FragmentViewModel> extends Fragm
     }
 
     outState.putBundle(VIEW_MODEL_KEY, viewModelEnvelope);
+  }
+
+  @CallSuper
+  @Override
+  public void onActivityResult(final int requestCode, final int resultCode, final @Nullable Intent data) {
+    super.onActivityResult(requestCode, resultCode, data);
+    Timber.d("onActivityResult %s", this.toString());
+    this.viewModel.activityResult(ActivityResult.create(requestCode, resultCode, data));
   }
 
   private void assignViewModel(final @Nullable Bundle viewModelEnvelope) {

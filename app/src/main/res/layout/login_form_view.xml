@@ -1,64 +1,55 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout
   xmlns:android="http://schemas.android.com/apk/res/android"
-  xmlns:app="http://schemas.android.com/apk/res-auto"
-  android:orientation="vertical"
   android:layout_width="match_parent"
   android:layout_height="match_parent"
-  android:gravity="center_horizontal">
+  android:gravity="center_horizontal"
+  android:orientation="vertical">
 
-  <android.support.design.widget.TextInputLayout
-    app:hintTextAppearance="@style/BodySecondary"
-    android:layout_width="match_parent"
-    android:layout_height="wrap_content"
-    android:layout_marginTop="@dimen/grid_2">
+  <com.google.android.material.textfield.TextInputLayout
+    style="@style/FormTextInputLayout"
+    android:layout_marginTop="@dimen/activity_vertical_margin"
+    android:hint="@string/login_placeholder_email">
 
-    <EditText
+    <com.google.android.material.textfield.TextInputEditText
       android:id="@+id/email"
       android:layout_width="match_parent"
       android:layout_height="wrap_content"
       android:inputType="textEmailAddress"
-      android:maxLines="1"
-      style="@style/CalloutPrimary"
-      android:hint="@string/login_placeholder_email" />
+      android:maxLines="1" />
 
-  </android.support.design.widget.TextInputLayout>
+  </com.google.android.material.textfield.TextInputLayout>
 
-  <android.support.design.widget.TextInputLayout
-    app:hintTextAppearance="@style/BodySecondary"
-    android:layout_width="match_parent"
-    android:layout_height="wrap_content"
-    android:layout_marginTop="@dimen/grid_1">
+  <com.google.android.material.textfield.TextInputLayout
+    style="@style/FormPasswordTextInputLayout"
+    android:hint="@string/login_placeholder_password">
 
-    <EditText
+    <com.google.android.material.textfield.TextInputEditText
       android:id="@+id/password"
       android:layout_width="match_parent"
       android:layout_height="wrap_content"
-      android:layout_marginBottom="@dimen/grid_2"
-      android:inputType="textPassword"
-      style="@style/CalloutPrimary"
-      android:hint="@string/login_placeholder_password" />
+      android:inputType="textPassword" />
 
-  </android.support.design.widget.TextInputLayout>
+  </com.google.android.material.textfield.TextInputLayout>
 
   <Button
     android:id="@+id/login_button"
-    style="@style/PrimaryButton"
-    android:enabled="false"
-    android:layout_marginTop="@dimen/grid_2"
     android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginTop="@dimen/grid_2"
+    android:enabled="false"
     android:text="@string/login_buttons_log_in" />
 
   <TextView
-    style="@style/Caption1Primary"
     android:id="@+id/forgot_your_password_text_view"
-    android:background="@drawable/click_indicator_light_masked"
+    style="@style/Caption1Primary"
     android:layout_width="wrap_content"
     android:layout_height="wrap_content"
-    android:layout_marginTop="@dimen/grid_1"
     android:layout_marginBottom="@dimen/grid_1"
-    android:paddingTop="@dimen/grid_1"
+    android:layout_marginTop="@dimen/grid_1"
+    android:background="@drawable/click_indicator_light_masked"
+    android:gravity="center_horizontal"
     android:paddingBottom="@dimen/grid_1"
-    android:gravity="center_horizontal" />
+    android:paddingTop="@dimen/grid_1" />
 
 </LinearLayout>

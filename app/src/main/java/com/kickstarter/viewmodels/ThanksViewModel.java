@@ -1,11 +1,11 @@
 package com.kickstarter.viewmodels;
 
-import android.support.annotation.NonNull;
 import android.util.Pair;
 
 import com.kickstarter.libs.ActivityViewModel;
 import com.kickstarter.libs.CurrentUserType;
 import com.kickstarter.libs.Environment;
+import com.kickstarter.libs.ExperimentsClientType;
 import com.kickstarter.libs.RefTag;
 import com.kickstarter.libs.preferences.BooleanPreferenceType;
 import com.kickstarter.libs.utils.ListUtils;
@@ -21,11 +21,14 @@ import com.kickstarter.ui.IntentKey;
 import com.kickstarter.ui.activities.ThanksActivity;
 import com.kickstarter.ui.adapters.ThanksAdapter;
 import com.kickstarter.ui.adapters.data.ThanksData;
+import com.kickstarter.ui.data.CheckoutData;
+import com.kickstarter.ui.data.PledgeData;
 import com.kickstarter.ui.viewholders.ProjectCardViewHolder;
 import com.kickstarter.ui.viewholders.ThanksCategoryViewHolder;
 
 import java.util.List;
 
+import androidx.annotation.NonNull;
 import rx.Observable;
 import rx.subjects.BehaviorSubject;
 import rx.subjects.PublishSubject;
@@ -40,6 +43,9 @@ public interface ThanksViewModel {
 
   interface Inputs extends ProjectCardViewHolder.Delegate, ThanksCategoryViewHolder.Delegate,
     ThanksAdapter.Delegate {
+    /** Call when the user clicks the close button. */
+    void closeButtonClicked();
+
     /** Call when the user accepts the prompt to signup to the Games newsletter. */
     void signupToGamesNewsletterClick();
   }
@@ -47,6 +53,9 @@ public interface ThanksViewModel {
   interface Outputs {
     /** Emits the data to configure the adapter with. */
     Observable<ThanksData> adapterData();
+
+    /** Emits when we should finish the {@link com.kickstarter.ui.activities.ThanksActivity}. */
+    Observable<Void> finish();
 
     /** Show a dialog confirming the user will be signed up to the games newsletter. Required for German users. */
     Observable<Void> showConfirmGamesNewsletterDialog();
@@ -69,6 +78,7 @@ public interface ThanksViewModel {
     private final BooleanPreferenceType hasSeenAppRatingPreference;
     private final BooleanPreferenceType hasSeenGamesNewsletterPreference;
     private final CurrentUserType currentUser;
+    private final ExperimentsClientType optimizely;
 
     public ViewModel(final @NonNull Environment environment) {
       super(environment);
@@ -77,6 +87,7 @@ public interface ThanksViewModel {
       this.currentUser = environment.currentUser();
       this.hasSeenAppRatingPreference = environment.hasSeenAppRatingPreference();
       this.hasSeenGamesNewsletterPreference = environment.hasSeenGamesNewsletterPreference();
+      this.optimizely = environment.optimizely();
 
       final Observable<Project> project = intent()
         .map(i -> i.getParcelableExtra(IntentKey.PROJECT))
@@ -104,6 +115,10 @@ public interface ThanksViewModel {
         .map(c -> DiscoveryParams.builder().category(c).build())
         .compose(bindToLifecycle())
         .subscribe(this.startDiscoveryActivity::onNext);
+
+      this.closeButtonClicked
+        .compose(bindToLifecycle())
+        .subscribe(this.finish);
 
       this.projectCardViewHolderClicked
         .compose(bindToLifecycle())
@@ -161,6 +176,23 @@ public interface ThanksViewModel {
       this.signedUpToGamesNewsletter
         .compose(bindToLifecycle())
         .subscribe(__ -> this.koala.trackNewsletterToggle(true));
+
+      final Observable<CheckoutData> checkoutData = intent()
+        .map(i -> i.getParcelableExtra(IntentKey.CHECKOUT_DATA))
+        .ofType(CheckoutData.class)
+        .take(1);
+
+      final Observable<PledgeData> pledgeData = intent()
+        .map(i -> i.getParcelableExtra(IntentKey.PLEDGE_DATA))
+        .ofType(PledgeData.class)
+        .take(1);
+
+      final Observable<Pair<CheckoutData, PledgeData>> checkoutAndPledgeData =
+        Observable.combineLatest(checkoutData, pledgeData, Pair::create);
+
+      checkoutAndPledgeData
+        .compose(bindToLifecycle())
+        .subscribe(checkoutDataPledgeData -> this.lake.trackThanksPageViewed(checkoutDataPledgeData.first, checkoutDataPledgeData.second));
     }
 
     /**
@@ -237,10 +269,12 @@ public interface ThanksViewModel {
     }
 
     private final PublishSubject<Category> categoryCardViewHolderClicked = PublishSubject.create();
+    private final PublishSubject<Void> closeButtonClicked = PublishSubject.create();
     private final PublishSubject<Project> projectCardViewHolderClicked  = PublishSubject.create();
     private final PublishSubject<Void> signupToGamesNewsletterClick = PublishSubject.create();
 
     private final BehaviorSubject<ThanksData> adapterData = BehaviorSubject.create();
+    private final PublishSubject<Void> finish = PublishSubject.create();
     private final PublishSubject<Void> showConfirmGamesNewsletterDialog = PublishSubject.create();
     private final PublishSubject<Void> showGamesNewsletterDialog = PublishSubject.create();
     private final PublishSubject<Void> showRatingDialog = PublishSubject.create();
@@ -254,6 +288,9 @@ public interface ThanksViewModel {
     @Override public void categoryViewHolderClicked(final @NonNull Category category) {
       this.categoryCardViewHolderClicked.onNext(category);
     }
+    @Override public void closeButtonClicked() {
+      this.closeButtonClicked.onNext(null);
+    }
     @Override public void signupToGamesNewsletterClick() {
       this.signupToGamesNewsletterClick.onNext(null);
     }
@@ -263,6 +300,9 @@ public interface ThanksViewModel {
 
     @Override public @NonNull Observable<ThanksData> adapterData() {
       return this.adapterData;
+    }
+    @Override public @NonNull Observable<Void> finish() {
+      return this.finish;
     }
     @Override public @NonNull Observable<Void> showConfirmGamesNewsletterDialog() {
       return this.showConfirmGamesNewsletterDialog;

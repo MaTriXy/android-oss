@@ -1,20 +1,20 @@
 package com.kickstarter.viewmodels;
 
-import android.support.annotation.NonNull;
 import android.util.Pair;
 
 import com.kickstarter.KSRobolectricTestCase;
 import com.kickstarter.R;
-import com.kickstarter.factories.CategoryFactory;
-import com.kickstarter.factories.ProjectFactory;
-import com.kickstarter.factories.UserFactory;
 import com.kickstarter.libs.Environment;
 import com.kickstarter.libs.utils.NumberUtils;
 import com.kickstarter.libs.utils.ObjectUtils;
 import com.kickstarter.libs.utils.ProgressBarUtils;
+import com.kickstarter.mock.factories.CategoryFactory;
+import com.kickstarter.mock.factories.ProjectFactory;
+import com.kickstarter.mock.factories.UserFactory;
 import com.kickstarter.models.Category;
 import com.kickstarter.models.Project;
 import com.kickstarter.models.User;
+import com.kickstarter.services.DiscoveryParams;
 
 import org.joda.time.DateTime;
 import org.junit.Test;
@@ -23,6 +23,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
+import androidx.annotation.NonNull;
 import rx.observers.TestSubscriber;
 
 
@@ -42,6 +43,8 @@ public class ProjectCardHolderViewModelTest extends KSRobolectricTestCase {
   private final TestSubscriber<Boolean> fundingUnsuccessfulViewGroupIsGone = new TestSubscriber<>();
   private final TestSubscriber<Boolean> fundingSuccessfulViewGroupIsGone = new TestSubscriber<>();
   private final TestSubscriber<Boolean> imageIsInvisible = new TestSubscriber<>();
+  private final TestSubscriber<Boolean> locationContainerIsGone = new TestSubscriber<>();
+  private final TestSubscriber<String> locationName = new TestSubscriber<>();
   private final TestSubscriber<Integer> metadataViewGroupBackgroundDrawable = new TestSubscriber<>();
   private final TestSubscriber<Boolean> metadataViewGroupIsGone = new TestSubscriber<>();
   private final TestSubscriber<Pair<String, String>> nameAndBlurbText = new TestSubscriber<>();
@@ -53,8 +56,12 @@ public class ProjectCardHolderViewModelTest extends KSRobolectricTestCase {
   private final TestSubscriber<Boolean> projectCardStatsViewGroupIsGone = new TestSubscriber<>();
   private final TestSubscriber<DateTime> projectFailedAt = new TestSubscriber<>();
   private final TestSubscriber<Boolean> projectStateViewGroupIsGone = new TestSubscriber<>();
+  private final TestSubscriber<Boolean> projectSubcategoryIsGone = new TestSubscriber<>();
+  private final TestSubscriber<String> projectSubcategoryName = new TestSubscriber<>();
   private final TestSubscriber<DateTime> projectSuccessfulAt = new TestSubscriber<>();
   private final TestSubscriber<DateTime> projectSuspendedAt = new TestSubscriber<>();
+  private final TestSubscriber<Boolean> projectTagContainerIsGone = new TestSubscriber<>();
+  private final TestSubscriber<Boolean> projectWeLoveIsGone = new TestSubscriber<>();
   private final TestSubscriber<String> rootCategoryNameForFeatured = new TestSubscriber<>();
   private final TestSubscriber<Boolean> setDefaultTopPadding = new TestSubscriber<>();
   private final TestSubscriber<Boolean> savedViewGroupIsGone = new TestSubscriber<>();
@@ -75,6 +82,8 @@ public class ProjectCardHolderViewModelTest extends KSRobolectricTestCase {
     this.vm.outputs.fundingUnsuccessfulViewGroupIsGone().subscribe(this.fundingUnsuccessfulViewGroupIsGone);
     this.vm.outputs.fundingSuccessfulViewGroupIsGone().subscribe(this.fundingSuccessfulViewGroupIsGone);
     this.vm.outputs.imageIsInvisible().subscribe(this.imageIsInvisible);
+    this.vm.outputs.locationContainerIsGone().subscribe(this.locationContainerIsGone);
+    this.vm.outputs.locationName().subscribe(this.locationName);
     this.vm.outputs.metadataViewGroupBackgroundDrawable().subscribe(this.metadataViewGroupBackgroundDrawable);
     this.vm.outputs.metadataViewGroupIsGone().subscribe(this.metadataViewGroupIsGone);
     this.vm.outputs.nameAndBlurbText().subscribe(this.nameAndBlurbText);
@@ -86,8 +95,12 @@ public class ProjectCardHolderViewModelTest extends KSRobolectricTestCase {
     this.vm.outputs.projectCardStatsViewGroupIsGone().subscribe(this.projectCardStatsViewGroupIsGone);
     this.vm.outputs.projectFailedAt().subscribe(this.projectFailedAt);
     this.vm.outputs.projectStateViewGroupIsGone().subscribe(this.projectStateViewGroupIsGone);
+    this.vm.outputs.projectSubcategoryIsGone().subscribe(this.projectSubcategoryIsGone);
+    this.vm.outputs.projectSubcategoryName().subscribe(this.projectSubcategoryName);
     this.vm.outputs.projectSuccessfulAt().subscribe(this.projectSuccessfulAt);
     this.vm.outputs.projectSuspendedAt().subscribe(this.projectSuspendedAt);
+    this.vm.outputs.projectTagContainerIsGone().subscribe(this.projectTagContainerIsGone);
+    this.vm.outputs.projectWeLoveIsGone().subscribe(this.projectWeLoveIsGone);
     this.vm.outputs.rootCategoryNameForFeatured().subscribe(this.rootCategoryNameForFeatured);
     this.vm.outputs.setDefaultTopPadding().subscribe(this.setDefaultTopPadding);
     this.vm.outputs.savedViewGroupIsGone().subscribe(this.savedViewGroupIsGone);
@@ -98,7 +111,7 @@ public class ProjectCardHolderViewModelTest extends KSRobolectricTestCase {
     final Project project = ProjectFactory.project().toBuilder().backersCount(50).build();
     setUpEnvironment(environment());
 
-    this.vm.inputs.configureWith(project);
+    this.vm.inputs.configureWith(Pair.create(project, DiscoveryParams.builder().build()));
     this.backersCountTextViewText.assertValues(NumberUtils.format(50));
   }
 
@@ -107,7 +120,7 @@ public class ProjectCardHolderViewModelTest extends KSRobolectricTestCase {
     final Project project = ProjectFactory.project().toBuilder().isBacking(true).build();
     setUpEnvironment(environment());
 
-    this.vm.inputs.configureWith(project);
+    this.vm.inputs.configureWith(Pair.create(project, DiscoveryParams.builder().build()));
     this.backingViewGroupIsGone.assertValues(false);
   }
 
@@ -121,7 +134,7 @@ public class ProjectCardHolderViewModelTest extends KSRobolectricTestCase {
       .build();
     setUpEnvironment(environment());
 
-    this.vm.inputs.configureWith(project);
+    this.vm.inputs.configureWith(Pair.create(project, DiscoveryParams.builder().build()));
     this.backingViewGroupIsGone.assertValues(true);
   }
 
@@ -132,7 +145,7 @@ public class ProjectCardHolderViewModelTest extends KSRobolectricTestCase {
       .build();
     setUpEnvironment(environment());
 
-    this.vm.inputs.configureWith(project);
+    this.vm.inputs.configureWith(Pair.create(project, DiscoveryParams.builder().build()));
     this.deadlineCountdownText.assertValues("24");
   }
 
@@ -141,7 +154,7 @@ public class ProjectCardHolderViewModelTest extends KSRobolectricTestCase {
     final Project project = ProjectFactory.project().toBuilder().isBacking(true).build();
     setUpEnvironment(environment());
 
-    this.vm.inputs.configureWith(project);
+    this.vm.inputs.configureWith(Pair.create(project, DiscoveryParams.builder().build()));
     this.featuredViewGroupIsGone.assertValues(true);
   }
 
@@ -150,7 +163,7 @@ public class ProjectCardHolderViewModelTest extends KSRobolectricTestCase {
     final Project project = ProjectFactory.project().toBuilder().featuredAt(DateTime.now()).build();
     setUpEnvironment(environment());
 
-    this.vm.inputs.configureWith(project);
+    this.vm.inputs.configureWith(Pair.create(project, DiscoveryParams.builder().build()));
     this.featuredViewGroupIsGone.assertValues(false);
   }
 
@@ -162,7 +175,7 @@ public class ProjectCardHolderViewModelTest extends KSRobolectricTestCase {
       .build();
     setUpEnvironment(environment());
 
-    this.vm.inputs.configureWith(project);
+    this.vm.inputs.configureWith(Pair.create(project, DiscoveryParams.builder().build()));
     this.friendAvatarUrl1.assertValues(project.friends().get(0).avatar().small());
     this.friendAvatarUrl2.assertNoValues();
     this.friendAvatarUrl3.assertNoValues();
@@ -178,7 +191,7 @@ public class ProjectCardHolderViewModelTest extends KSRobolectricTestCase {
       .build();
     setUpEnvironment(environment());
 
-    this.vm.inputs.configureWith(project);
+    this.vm.inputs.configureWith(Pair.create(project, DiscoveryParams.builder().build()));
     this.friendAvatarUrl1.assertValues(project.friends().get(0).avatar().small());
     this.friendAvatarUrl2.assertValues(project.friends().get(1).avatar().small());
     this.friendAvatarUrl3.assertNoValues();
@@ -194,7 +207,7 @@ public class ProjectCardHolderViewModelTest extends KSRobolectricTestCase {
       .build();
     setUpEnvironment(environment());
 
-    this.vm.inputs.configureWith(project);
+    this.vm.inputs.configureWith(Pair.create(project, DiscoveryParams.builder().build()));
     this.friendAvatarUrl1.assertValues(project.friends().get(0).avatar().small());
     this.friendAvatarUrl2.assertValues(project.friends().get(1).avatar().small());
     this.friendAvatarUrl3.assertValues(project.friends().get(2).avatar().small());
@@ -210,7 +223,7 @@ public class ProjectCardHolderViewModelTest extends KSRobolectricTestCase {
       .build();
     setUpEnvironment(environment());
 
-    this.vm.inputs.configureWith(project);
+    this.vm.inputs.configureWith(Pair.create(project, DiscoveryParams.builder().build()));
 
     // friends view is not hidden for project with friend backings
     this.friendBackingViewIsHidden.assertValues(false);
@@ -221,7 +234,7 @@ public class ProjectCardHolderViewModelTest extends KSRobolectricTestCase {
     final Project project = ProjectFactory.project().toBuilder().friends(null).build();
     setUpEnvironment(environment());
 
-    this.vm.inputs.configureWith(project);
+    this.vm.inputs.configureWith(Pair.create(project, DiscoveryParams.builder().build()));
     this.friendBackingViewIsHidden.assertValues(true);
   }
 
@@ -233,7 +246,7 @@ public class ProjectCardHolderViewModelTest extends KSRobolectricTestCase {
       .build();
     setUpEnvironment(environment());
 
-    this.vm.inputs.configureWith(project);
+    this.vm.inputs.configureWith(Pair.create(project, DiscoveryParams.builder().build()));
     this.friendsForNamepile.assertValues(project.friends());
   }
 
@@ -242,7 +255,7 @@ public class ProjectCardHolderViewModelTest extends KSRobolectricTestCase {
     final Project project = ProjectFactory.project().toBuilder().state(Project.STATE_LIVE).build();
     setUpEnvironment(environment());
 
-    this.vm.inputs.configureWith(project);
+    this.vm.inputs.configureWith(Pair.create(project, DiscoveryParams.builder().build()));
     this.fundingUnsuccessfulViewGroupIsGone.assertValues(true);
   }
 
@@ -251,7 +264,7 @@ public class ProjectCardHolderViewModelTest extends KSRobolectricTestCase {
     final Project project = ProjectFactory.project().toBuilder().state(Project.STATE_FAILED).build();
     setUpEnvironment(environment());
 
-    this.vm.inputs.configureWith(project);
+    this.vm.inputs.configureWith(Pair.create(project, DiscoveryParams.builder().build()));
     this.fundingUnsuccessfulViewGroupIsGone.assertValues(false);
   }
 
@@ -260,7 +273,7 @@ public class ProjectCardHolderViewModelTest extends KSRobolectricTestCase {
     final Project project = ProjectFactory.project().toBuilder().state(Project.STATE_FAILED).build();
     setUpEnvironment(environment());
 
-    this.vm.inputs.configureWith(project);
+    this.vm.inputs.configureWith(Pair.create(project, DiscoveryParams.builder().build()));
     this.fundingSuccessfulViewGroupIsGone.assertValues(true);
   }
 
@@ -269,7 +282,7 @@ public class ProjectCardHolderViewModelTest extends KSRobolectricTestCase {
     final Project project = ProjectFactory.project().toBuilder().state(Project.STATE_SUCCESSFUL).build();
     setUpEnvironment(environment());
 
-    this.vm.inputs.configureWith(project);
+    this.vm.inputs.configureWith(Pair.create(project, DiscoveryParams.builder().build()));
     this.fundingSuccessfulViewGroupIsGone.assertValues(false);
   }
 
@@ -278,8 +291,53 @@ public class ProjectCardHolderViewModelTest extends KSRobolectricTestCase {
     final Project project = ProjectFactory.project();
     setUpEnvironment(environment());
 
-    this.vm.inputs.configureWith(project);
+    this.vm.inputs.configureWith(Pair.create(project, DiscoveryParams.builder().build()));
     this.imageIsInvisible.assertValues(ObjectUtils.isNull(project.photo()));
+  }
+
+  @Test
+  public void testLocationContainerIsGone_whenSortIsDistance() {
+    final Project project = ProjectFactory.project();
+    setUpEnvironment(environment());
+
+    final DiscoveryParams discoveryParams = DiscoveryParams.builder()
+      .tagId(557)
+      .build();
+    this.vm.inputs.configureWith(Pair.create(project, discoveryParams));
+    this.locationContainerIsGone.assertValues(false);
+  }
+
+  @Test
+  public void testLocationContainerIsGone_whenSortIsNotDistance() {
+    final Project project = ProjectFactory.project();
+    setUpEnvironment(environment());
+
+    final DiscoveryParams discoveryParams = DiscoveryParams.builder()
+      .sort(DiscoveryParams.Sort.MAGIC)
+      .build();
+    this.vm.inputs.configureWith(Pair.create(project, discoveryParams));
+    this.locationContainerIsGone.assertValues(true);
+  }
+
+  @Test
+  public void testLocationName_whenLocationIsNull() {
+    final Project project = ProjectFactory.project()
+      .toBuilder()
+      .location(null)
+      .build();
+    setUpEnvironment(environment());
+
+    this.vm.inputs.configureWith(Pair.create(project, DiscoveryParams.builder().build()));
+    this.locationName.assertNoValues();
+  }
+
+  @Test
+  public void testLocationName_whenLocationIsNotNull() {
+    final Project project = ProjectFactory.project();
+    setUpEnvironment(environment());
+
+    this.vm.inputs.configureWith(Pair.create(project, DiscoveryParams.builder().build()));
+    this.locationName.assertValue("Brooklyn, NY");
   }
 
   @Test
@@ -287,7 +345,7 @@ public class ProjectCardHolderViewModelTest extends KSRobolectricTestCase {
     final Project project = ProjectFactory.project().toBuilder().isBacking(true).build();
     setUpEnvironment(environment());
 
-    this.vm.inputs.configureWith(project);
+    this.vm.inputs.configureWith(Pair.create(project, DiscoveryParams.builder().build()));
     this.metadataViewGroupBackgroundDrawable.assertValues(R.drawable.rect_green_grey_stroke);
   }
 
@@ -296,7 +354,7 @@ public class ProjectCardHolderViewModelTest extends KSRobolectricTestCase {
     final Project project = ProjectFactory.project().toBuilder().isStarred(true).build();
     setUpEnvironment(environment());
 
-    this.vm.inputs.configureWith(project);
+    this.vm.inputs.configureWith(Pair.create(project, DiscoveryParams.builder().build()));
     this.metadataViewGroupIsGone.assertValues(false);
   }
 
@@ -306,7 +364,7 @@ public class ProjectCardHolderViewModelTest extends KSRobolectricTestCase {
     final Project project = ProjectFactory.project().toBuilder().name(nameAndBlurbPair.first).blurb(nameAndBlurbPair.second).build();
     setUpEnvironment(environment());
 
-    this.vm.inputs.configureWith(project);
+    this.vm.inputs.configureWith(Pair.create(project, DiscoveryParams.builder().build()));
     this.nameAndBlurbText.assertValues(nameAndBlurbPair);
   }
 
@@ -315,7 +373,7 @@ public class ProjectCardHolderViewModelTest extends KSRobolectricTestCase {
     final Project project = ProjectFactory.project();
     setUpEnvironment(environment());
 
-    this.vm.inputs.configureWith(project);
+    this.vm.inputs.configureWith(Pair.create(project, DiscoveryParams.builder().build()));
     this.vm.inputs.projectCardClicked();
     this.notifyDelegateOfProjectClick.assertValues(project);
   }
@@ -325,7 +383,7 @@ public class ProjectCardHolderViewModelTest extends KSRobolectricTestCase {
     final Project project = ProjectFactory.project().toBuilder().state(Project.STATE_SUCCESSFUL).build();
     setUpEnvironment(environment());
 
-    this.vm.inputs.configureWith(project);
+    this.vm.inputs.configureWith(Pair.create(project, DiscoveryParams.builder().build()));
     this.percentageFundedForProgressBar.assertValues(ProgressBarUtils.progress(project.percentageFunded()));
   }
 
@@ -334,7 +392,7 @@ public class ProjectCardHolderViewModelTest extends KSRobolectricTestCase {
     final Project project = ProjectFactory.project().toBuilder().state(Project.STATE_FAILED).build();
     setUpEnvironment(environment());
 
-    this.vm.inputs.configureWith(project);
+    this.vm.inputs.configureWith(Pair.create(project, DiscoveryParams.builder().build()));
     this.percentageFundedForProgressBar.assertValues(ProgressBarUtils.progress(0.0f));
   }
 
@@ -343,7 +401,7 @@ public class ProjectCardHolderViewModelTest extends KSRobolectricTestCase {
     final Project project = ProjectFactory.project();
     setUpEnvironment(environment());
 
-    this.vm.inputs.configureWith(project);
+    this.vm.inputs.configureWith(Pair.create(project, DiscoveryParams.builder().build()));
     this.percentageFundedTextViewText.assertValues(NumberUtils.flooredPercentage(project.percentageFunded()));
   }
 
@@ -352,7 +410,7 @@ public class ProjectCardHolderViewModelTest extends KSRobolectricTestCase {
     final Project project = ProjectFactory.project();
     setUpEnvironment(environment());
 
-    this.vm.inputs.configureWith(project);
+    this.vm.inputs.configureWith(Pair.create(project, DiscoveryParams.builder().build()));
     this.photoUrl.assertValues(project.photo().full());
   }
 
@@ -366,7 +424,7 @@ public class ProjectCardHolderViewModelTest extends KSRobolectricTestCase {
 
     setUpEnvironment(environment());
 
-    this.vm.inputs.configureWith(project);
+    this.vm.inputs.configureWith(Pair.create(project, DiscoveryParams.builder().build()));
     this.projectCanceledAt.assertValues(project.stateChangedAt());
   }
 
@@ -375,7 +433,7 @@ public class ProjectCardHolderViewModelTest extends KSRobolectricTestCase {
     final Project project = ProjectFactory.project().toBuilder().state(Project.STATE_LIVE).build();
     setUpEnvironment(environment());
 
-    this.vm.inputs.configureWith(project);
+    this.vm.inputs.configureWith(Pair.create(project, DiscoveryParams.builder().build()));
     this.projectCardStatsViewGroupIsGone.assertValues(false);
   }
 
@@ -384,7 +442,7 @@ public class ProjectCardHolderViewModelTest extends KSRobolectricTestCase {
     final Project project = ProjectFactory.project().toBuilder().state(Project.STATE_CANCELED).build();
     setUpEnvironment(environment());
 
-    this.vm.inputs.configureWith(project);
+    this.vm.inputs.configureWith(Pair.create(project, DiscoveryParams.builder().build()));
     this.projectCardStatsViewGroupIsGone.assertValues(true);
   }
 
@@ -398,7 +456,7 @@ public class ProjectCardHolderViewModelTest extends KSRobolectricTestCase {
 
     setUpEnvironment(environment());
 
-    this.vm.inputs.configureWith(project);
+    this.vm.inputs.configureWith(Pair.create(project, DiscoveryParams.builder().build()));
     this.projectFailedAt.assertValues(project.stateChangedAt());
   }
 
@@ -407,7 +465,7 @@ public class ProjectCardHolderViewModelTest extends KSRobolectricTestCase {
     final Project project = ProjectFactory.project().toBuilder().state(Project.STATE_LIVE).build();
     setUpEnvironment(environment());
 
-    this.vm.inputs.configureWith(project);
+    this.vm.inputs.configureWith(Pair.create(project, DiscoveryParams.builder().build()));
     this.projectStateViewGroupIsGone.assertValues(true);
   }
 
@@ -416,8 +474,49 @@ public class ProjectCardHolderViewModelTest extends KSRobolectricTestCase {
     final Project project = ProjectFactory.project().toBuilder().state(Project.STATE_SUCCESSFUL).build();
     setUpEnvironment(environment());
 
-    this.vm.inputs.configureWith(project);
+    this.vm.inputs.configureWith(Pair.create(project, DiscoveryParams.builder().build()));
     this.projectStateViewGroupIsGone.assertValues(false);
+  }
+
+  @Test
+  public void testProjectSubcategoryIsGone() {
+    setUpEnvironment(environment());
+    final Project artProject = ProjectFactory.project().toBuilder().category(CategoryFactory.artCategory()).build();
+    final Project ceramicsProject = ProjectFactory.project().toBuilder().category(CategoryFactory.ceramicsCategory()).build();
+
+    final DiscoveryParams allProjects = DiscoveryParams.builder().build();
+    final DiscoveryParams artProjects = DiscoveryParams.builder().category(CategoryFactory.artCategory()).build();
+    final DiscoveryParams ceramicsProjects = DiscoveryParams.builder().category(CategoryFactory.ceramicsCategory()).build();
+
+    //Root category is shown for project without subcategory when viewing all projects.
+    this.vm.inputs.configureWith(Pair.create(artProject, allProjects));
+    this.projectSubcategoryIsGone.assertValue(false);
+
+    //Subcategory is shown when viewing all projects.
+    this.vm.inputs.configureWith(Pair.create(ceramicsProject, allProjects));
+    this.projectSubcategoryIsGone.assertValue(false);
+
+    this.vm.inputs.configureWith(Pair.create(ceramicsProject, artProjects));
+    this.projectSubcategoryIsGone.assertValue(false);
+
+    this.vm.inputs.configureWith(Pair.create(ceramicsProject, ceramicsProjects));
+    this.projectSubcategoryIsGone.assertValues(false, true);
+
+    this.vm.inputs.configureWith(Pair.create(ceramicsProject, artProjects));
+    this.projectSubcategoryIsGone.assertValues(false, true, false);
+
+    this.vm.inputs.configureWith(Pair.create(artProject, artProjects));
+    this.projectSubcategoryIsGone.assertValues(false, true, false, true);
+  }
+
+  @Test
+  public void testProjectSubcategoryName() {
+    final Category category = CategoryFactory.ceramicsCategory();
+    final Project project = ProjectFactory.project().toBuilder().category(category).build();
+    setUpEnvironment(environment());
+
+    this.vm.inputs.configureWith(Pair.create(project, DiscoveryParams.builder().build()));
+    this.projectSubcategoryName.assertValues(category.name());
   }
 
   @Test
@@ -430,7 +529,7 @@ public class ProjectCardHolderViewModelTest extends KSRobolectricTestCase {
 
     setUpEnvironment(environment());
 
-    this.vm.inputs.configureWith(project);
+    this.vm.inputs.configureWith(Pair.create(project, DiscoveryParams.builder().build()));
     this.projectSuccessfulAt.assertValues(project.stateChangedAt());
   }
 
@@ -444,8 +543,77 @@ public class ProjectCardHolderViewModelTest extends KSRobolectricTestCase {
 
     setUpEnvironment(environment());
 
-    this.vm.inputs.configureWith(project);
+    this.vm.inputs.configureWith(Pair.create(project, DiscoveryParams.builder().build()));
     this.projectSuspendedAt.assertValues(project.stateChangedAt());
+  }
+
+  @Test
+  public void testProjectTagContainerIsGone() {
+    setUpEnvironment(environment());
+
+    final Project artProject = ProjectFactory.project().toBuilder().category(CategoryFactory.artCategory()).build();
+    final Project ceramicsProject = ProjectFactory.project().toBuilder().category(CategoryFactory.ceramicsCategory()).build();
+    final Project ceramicsStaffPickProject = ProjectFactory.staffPick().toBuilder().category(CategoryFactory.ceramicsCategory()).build();
+    final Project artStaffPickProject = ProjectFactory.staffPick().toBuilder().category(CategoryFactory.artCategory()).build();
+    final DiscoveryParams allProjects = DiscoveryParams.builder().build();
+    final DiscoveryParams artProjects = DiscoveryParams.builder().category(CategoryFactory.artCategory()).build();
+    final DiscoveryParams staffPicks = DiscoveryParams.builder().staffPicks(true).build();
+    final DiscoveryParams ceramicsProjects = DiscoveryParams.builder().category(CategoryFactory.ceramicsCategory()).build();
+
+    this.vm.inputs.configureWith(Pair.create(artProject, allProjects));
+    this.projectTagContainerIsGone.assertValue(false);
+
+    this.vm.inputs.configureWith(Pair.create(artStaffPickProject, allProjects));
+    this.projectTagContainerIsGone.assertValue(false);
+
+    this.vm.inputs.configureWith(Pair.create(artProject, artProjects));
+    this.projectTagContainerIsGone.assertValues(false, true);
+
+    this.vm.inputs.configureWith(Pair.create(artStaffPickProject, artProjects));
+    this.projectTagContainerIsGone.assertValues(false, true, false);
+
+    this.vm.inputs.configureWith(Pair.create(ceramicsProject, artProjects));
+    this.projectTagContainerIsGone.assertValues(false, true, false);
+
+    this.vm.inputs.configureWith(Pair.create(ceramicsStaffPickProject, artProjects));
+    this.projectTagContainerIsGone.assertValues(false, true, false);
+
+    this.vm.inputs.configureWith(Pair.create(ceramicsStaffPickProject, ceramicsProjects));
+    this.projectTagContainerIsGone.assertValues(false, true, false);
+
+    this.vm.inputs.configureWith(Pair.create(ceramicsProject, ceramicsProjects));
+    this.projectTagContainerIsGone.assertValues(false, true, false, true);
+
+    this.vm.inputs.configureWith(Pair.create(ceramicsProject, staffPicks));
+    this.projectTagContainerIsGone.assertValues(false, true, false, true, false);
+
+    this.vm.inputs.configureWith(Pair.create(ceramicsStaffPickProject, staffPicks));
+    this.projectTagContainerIsGone.assertValues(false, true, false, true, false);
+
+    this.vm.inputs.configureWith(Pair.create(artProject, staffPicks));
+    this.projectTagContainerIsGone.assertValues(false, true, false, true, false);
+
+    this.vm.inputs.configureWith(Pair.create(artStaffPickProject, staffPicks));
+    this.projectTagContainerIsGone.assertValues(false, true, false, true, false);
+  }
+
+  @Test
+  public void testProjectWeLoveIsGone() {
+    setUpEnvironment(environment());
+
+    final Project musicProject = ProjectFactory.project();
+    final Project staffPickProject = ProjectFactory.staffPick();
+    final DiscoveryParams allProjects = DiscoveryParams.builder().build();
+    final DiscoveryParams staffPicks = DiscoveryParams.builder().staffPicks(true).build();
+
+    this.vm.inputs.configureWith(Pair.create(musicProject, allProjects));
+    this.projectWeLoveIsGone.assertValue(true);
+
+    this.vm.inputs.configureWith(Pair.create(staffPickProject, allProjects));
+    this.projectWeLoveIsGone.assertValues(true, false);
+
+    this.vm.inputs.configureWith(Pair.create(staffPickProject, staffPicks));
+    this.projectWeLoveIsGone.assertValues(true, false, true);
   }
 
   @Test
@@ -459,7 +627,7 @@ public class ProjectCardHolderViewModelTest extends KSRobolectricTestCase {
 
     setUpEnvironment(environment());
 
-    this.vm.inputs.configureWith(project);
+    this.vm.inputs.configureWith(Pair.create(project, DiscoveryParams.builder().build()));
     this.rootCategoryNameForFeatured.assertValues(category.root().name());
   }
 
@@ -474,7 +642,7 @@ public class ProjectCardHolderViewModelTest extends KSRobolectricTestCase {
 
     setUpEnvironment(environment());
 
-    this.vm.inputs.configureWith(project);
+    this.vm.inputs.configureWith(Pair.create(project, DiscoveryParams.builder().build()));
     this.setDefaultTopPadding.assertValue(true);
   }
 
@@ -489,7 +657,7 @@ public class ProjectCardHolderViewModelTest extends KSRobolectricTestCase {
 
     setUpEnvironment(environment());
 
-    this.vm.inputs.configureWith(project);
+    this.vm.inputs.configureWith(Pair.create(project, DiscoveryParams.builder().build()));
     this.setDefaultTopPadding.assertValue(false);
   }
 
@@ -498,7 +666,7 @@ public class ProjectCardHolderViewModelTest extends KSRobolectricTestCase {
     final Project project = ProjectFactory.project().toBuilder().isStarred(true).build();
     setUpEnvironment(environment());
 
-    this.vm.inputs.configureWith(project);
+    this.vm.inputs.configureWith(Pair.create(project, DiscoveryParams.builder().build()));
     this.savedViewGroupIsGone.assertValues(false);
   }
 
@@ -507,7 +675,7 @@ public class ProjectCardHolderViewModelTest extends KSRobolectricTestCase {
     final Project project = ProjectFactory.project().toBuilder().isBacking(true).isStarred(true).build();
     setUpEnvironment(environment());
 
-    this.vm.inputs.configureWith(project);
+    this.vm.inputs.configureWith(Pair.create(project, DiscoveryParams.builder().build()));
     this.savedViewGroupIsGone.assertValues(true);
   }
 }

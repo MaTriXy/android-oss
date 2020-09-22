@@ -1,22 +1,26 @@
 package com.kickstarter.viewmodels;
 
 import android.content.Intent;
-import android.support.annotation.NonNull;
+import android.net.Uri;
+import android.util.Pair;
 
 import com.kickstarter.KSRobolectricTestCase;
-import com.kickstarter.factories.ProjectFactory;
-import com.kickstarter.factories.UpdateFactory;
 import com.kickstarter.libs.Environment;
 import com.kickstarter.libs.KoalaEvent;
 import com.kickstarter.libs.utils.NumberUtils;
+import com.kickstarter.mock.factories.ProjectFactory;
+import com.kickstarter.mock.factories.UpdateFactory;
+import com.kickstarter.mock.factories.UserFactory;
+import com.kickstarter.mock.services.MockApiClient;
 import com.kickstarter.models.Project;
 import com.kickstarter.models.Update;
+import com.kickstarter.models.User;
 import com.kickstarter.services.ApiClientType;
-import com.kickstarter.services.MockApiClient;
 import com.kickstarter.ui.IntentKey;
 
 import org.junit.Test;
 
+import androidx.annotation.NonNull;
 import okhttp3.Request;
 import rx.Observable;
 import rx.observers.TestSubscriber;
@@ -25,6 +29,27 @@ public final class UpdateViewModelTest extends KSRobolectricTestCase {
   private final Intent defaultIntent = new Intent()
     .putExtra(IntentKey.PROJECT, ProjectFactory.project())
     .putExtra(IntentKey.UPDATE, UpdateFactory.update());
+
+  @Test
+  public void testOpenProjectExternally_whenProjectUrlIsPreview() {
+    final Environment environment = environment();
+    final UpdateViewModel.ViewModel vm = new UpdateViewModel.ViewModel(environment);
+
+    final TestSubscriber<String> openProjectExternally = new TestSubscriber<>();
+    vm.outputs.openProjectExternally().subscribe(openProjectExternally);
+
+    // Start the intent with a project and update.
+    vm.intent(this.defaultIntent);
+
+    final String url = "https://www.kickstarter.com/projects/smithsonian/smithsonian-anthology-of-hip-hop-and-rap?token=beepboop";
+    final Request projectRequest = new Request.Builder()
+      .url(url)
+      .build();
+
+    vm.inputs.goToProjectRequest(projectRequest);
+
+    openProjectExternally.assertValue(url + "&ref=update");
+  }
 
   @Test
   public void testUpdateViewModel_ExternalLinkActivated() {
@@ -102,51 +127,48 @@ public final class UpdateViewModelTest extends KSRobolectricTestCase {
 
   @Test
   public void testUpdateViewModel_StartProjectActivity() {
-    final Update update = UpdateFactory.update()
-      .toBuilder()
-      .projectId(1234)
-      .build();
-
-    final Project project = ProjectFactory.project()
-      .toBuilder()
-      .id(update.projectId())
-      .build();
-
-    final Request projectRequest = new Request.Builder()
-      .url("https://kck.str/projects/param/param")
-      .build();
-
-    final ApiClientType apiClient = new MockApiClient() {
-      @Override
-      public @NonNull Observable<Project> fetchProject(final @NonNull String param) {
-        return Observable.just(project);
-      }
-    };
-
-    final Environment environment = environment().toBuilder().apiClient(apiClient).build();
+    final Environment environment = environment();
     final UpdateViewModel.ViewModel vm = new UpdateViewModel.ViewModel(environment);
 
-    final TestSubscriber<Project> startProjectActivity = new TestSubscriber<>();
-    vm.outputs.startProjectActivity().map(pr -> pr.first).subscribe(startProjectActivity);
+    final TestSubscriber<Uri> startProjectActivity = new TestSubscriber<>();
+    vm.outputs.startProjectActivity().map(uriAndRefTag -> uriAndRefTag.first).subscribe(startProjectActivity);
 
     // Start the intent with a project and update.
-    vm.intent(new Intent()
-      .putExtra(IntentKey.PROJECT, project)
-      .putExtra(IntentKey.UPDATE, update)
-    );
+    vm.intent(this.defaultIntent);
+
+    final String url = "https://www.kickstarter.com/projects/smithsonian/smithsonian-anthology-of-hip-hop-and-rap";
+    final Request projectRequest = new Request.Builder()
+      .url(url)
+      .build();
 
     vm.inputs.goToProjectRequest(projectRequest);
 
-    startProjectActivity.assertValues(project);
+    startProjectActivity.assertValues(Uri.parse(url));
   }
 
   @Test
   public void testUpdateViewModel_StartShareIntent() {
     final UpdateViewModel.ViewModel vm = new UpdateViewModel.ViewModel(environment());
 
-    final Update update = UpdateFactory.update();
+    final User creator = UserFactory.creator().toBuilder().id(278438049).build();
+    final Project project = ProjectFactory.project().toBuilder().creator(creator).build();
+    final String updatesUrl = "https://www.kck.str/projects/" + project.creator().param() + "/" + project.param() + "/posts";
 
-    final TestSubscriber<Update> startShareIntent = new TestSubscriber<>();
+    final int id = 15;
+
+    final Update.Urls.Web web = Update.Urls.Web.builder()
+      .update(updatesUrl + "/" + id)
+      .likes(updatesUrl + "/likes")
+      .build();
+
+    final Update update = UpdateFactory.update()
+      .toBuilder()
+      .id(id)
+      .projectId(project.id())
+      .urls(Update.Urls.builder().web(web).build())
+      .build();
+
+    final TestSubscriber<Pair<Update, String>> startShareIntent = new TestSubscriber<>();
     vm.outputs.startShareIntent().subscribe(startShareIntent);
 
     // Start the intent with a project and update.
@@ -156,7 +178,9 @@ public final class UpdateViewModelTest extends KSRobolectricTestCase {
     );
     vm.inputs.shareIconButtonClicked();
 
-    startShareIntent.assertValues(update);
+    final String expectedShareUrl = "https://www.kck.str/projects/" + project.creator().param() +
+      "/" + project.param() + "/posts/" + id + "?ref=android_update_share";
+    startShareIntent.assertValue(Pair.create(update, expectedShareUrl));
   }
 
   @Test

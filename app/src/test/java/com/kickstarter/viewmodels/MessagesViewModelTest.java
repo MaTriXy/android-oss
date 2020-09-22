@@ -1,28 +1,27 @@
 package com.kickstarter.viewmodels;
 
 import android.content.Intent;
-import android.support.annotation.NonNull;
 import android.util.Pair;
 
 import com.kickstarter.KSRobolectricTestCase;
-import com.kickstarter.factories.ApiExceptionFactory;
-import com.kickstarter.factories.BackingFactory;
-import com.kickstarter.factories.MessageFactory;
-import com.kickstarter.factories.MessageThreadEnvelopeFactory;
-import com.kickstarter.factories.MessageThreadFactory;
-import com.kickstarter.factories.ProjectFactory;
-import com.kickstarter.factories.UserFactory;
 import com.kickstarter.libs.CurrentUserType;
 import com.kickstarter.libs.Environment;
 import com.kickstarter.libs.KoalaContext;
 import com.kickstarter.libs.KoalaEvent;
 import com.kickstarter.libs.MockCurrentUser;
+import com.kickstarter.mock.factories.ApiExceptionFactory;
+import com.kickstarter.mock.factories.BackingFactory;
+import com.kickstarter.mock.factories.MessageFactory;
+import com.kickstarter.mock.factories.MessageThreadEnvelopeFactory;
+import com.kickstarter.mock.factories.MessageThreadFactory;
+import com.kickstarter.mock.factories.ProjectFactory;
+import com.kickstarter.mock.factories.UserFactory;
+import com.kickstarter.mock.services.MockApiClient;
 import com.kickstarter.models.Backing;
 import com.kickstarter.models.Message;
 import com.kickstarter.models.MessageThread;
 import com.kickstarter.models.Project;
 import com.kickstarter.models.User;
-import com.kickstarter.services.MockApiClient;
 import com.kickstarter.services.apiresponses.MessageThreadEnvelope;
 import com.kickstarter.ui.IntentKey;
 import com.kickstarter.ui.data.MessageSubject;
@@ -32,6 +31,7 @@ import org.junit.Test;
 import java.util.Collections;
 import java.util.List;
 
+import androidx.annotation.NonNull;
 import rx.Observable;
 import rx.observers.TestSubscriber;
 
@@ -501,6 +501,26 @@ public final class MessagesViewModelTest extends KSRobolectricTestCase {
   }
 
   @Test
+  public void testStartBackingActivity_AsBacker_EmptyThread() {
+    final User user = UserFactory.user();
+    final Project project = ProjectFactory.project().toBuilder().isBacking(true).build();
+
+    final MockApiClient apiClient = new MockApiClient() {
+      @Override
+      public @NonNull Observable<MessageThreadEnvelope> fetchMessagesForBacking(final @NonNull Backing backing) {
+        return Observable.just(MessageThreadEnvelopeFactory.empty());
+      }
+    };
+
+    setUpEnvironment(environment().toBuilder().apiClient(apiClient).currentUser(new MockCurrentUser(user)).build());
+
+    this.vm.intent(creatorBioModalContextIntent(BackingFactory.backing(), project));
+    this.vm.inputs.viewPledgeButtonClicked();
+
+    this.startBackingActivity.assertValues(Pair.create(project, user));
+  }
+
+  @Test
   public void testStartBackingActivity_AsCreator() {
     final User backer = UserFactory.user().toBuilder().name("Vanessa").build();
     final User creator = UserFactory.user().toBuilder().name("Jessica").build();
@@ -618,12 +638,21 @@ public final class MessagesViewModelTest extends KSRobolectricTestCase {
   }
 
   @Test
-  public void testViewPledgeButton_IsGone() {
+  public void testViewPledgeButton_IsGone_backerModal() {
     setUpEnvironment(environment().toBuilder().currentUser(new MockCurrentUser(UserFactory.user())).build());
     this.vm.intent(backerModalContextIntent(BackingFactory.backing(), ProjectFactory.project()));
 
     // View pledge button is hidden when context is from the backer modal.
     this.viewPledgeButtonIsGone.assertValues(true);
+  }
+
+  @Test
+  public void testViewPledgeButton_IsVisible_creatorBioModal() {
+    setUpEnvironment(environment().toBuilder().currentUser(new MockCurrentUser(UserFactory.user())).build());
+    this.vm.intent(creatorBioModalContextIntent(BackingFactory.backing(), ProjectFactory.project()));
+
+    // View pledge button is shown when context is from the creator bio modal.
+    this.viewPledgeButtonIsGone.assertValues(false);
   }
 
   @Test
@@ -640,6 +669,13 @@ public final class MessagesViewModelTest extends KSRobolectricTestCase {
       .putExtra(IntentKey.BACKING, backing)
       .putExtra(IntentKey.PROJECT, project)
       .putExtra(IntentKey.KOALA_CONTEXT, KoalaContext.Message.BACKER_MODAL);
+  }
+
+  private static @NonNull Intent creatorBioModalContextIntent(final @NonNull Backing backing, final @NonNull Project project) {
+    return new Intent()
+      .putExtra(IntentKey.BACKING, backing)
+      .putExtra(IntentKey.PROJECT, project)
+      .putExtra(IntentKey.KOALA_CONTEXT, KoalaContext.Message.CREATOR_BIO_MODAL);
   }
 
   private static @NonNull Intent messagesContextIntent(final @NonNull MessageThread messageThread) {

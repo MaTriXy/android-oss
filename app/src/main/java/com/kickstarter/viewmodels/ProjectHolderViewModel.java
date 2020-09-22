@@ -1,44 +1,53 @@
 package com.kickstarter.viewmodels;
 
-import android.support.annotation.NonNull;
 import android.util.Pair;
 
 import com.kickstarter.R;
 import com.kickstarter.libs.ActivityViewModel;
+import com.kickstarter.libs.CurrentUserType;
 import com.kickstarter.libs.Environment;
+import com.kickstarter.libs.ExperimentsClientType;
 import com.kickstarter.libs.KSCurrency;
+import com.kickstarter.libs.models.OptimizelyExperiment;
 import com.kickstarter.libs.utils.BooleanUtils;
-import com.kickstarter.libs.utils.I18nUtils;
+import com.kickstarter.libs.utils.DateTimeUtils;
+import com.kickstarter.libs.utils.ExperimentData;
 import com.kickstarter.libs.utils.ListUtils;
 import com.kickstarter.libs.utils.NumberUtils;
 import com.kickstarter.libs.utils.ObjectUtils;
-import com.kickstarter.libs.utils.PairUtils;
 import com.kickstarter.libs.utils.ProgressBarUtils;
 import com.kickstarter.libs.utils.ProjectUtils;
 import com.kickstarter.models.Category;
+import com.kickstarter.models.CreatorDetails;
 import com.kickstarter.models.Location;
 import com.kickstarter.models.Photo;
 import com.kickstarter.models.Project;
 import com.kickstarter.models.User;
+import com.kickstarter.services.ApolloClientType;
+import com.kickstarter.ui.data.ProjectData;
 import com.kickstarter.ui.viewholders.ProjectViewHolder;
 
 import org.joda.time.DateTime;
 
-import java.math.RoundingMode;
 import java.util.List;
 
+import androidx.annotation.NonNull;
+import rx.Notification;
 import rx.Observable;
+import rx.subjects.BehaviorSubject;
 import rx.subjects.PublishSubject;
 
 import static com.kickstarter.libs.rx.transformers.Transformers.combineLatestPair;
+import static com.kickstarter.libs.rx.transformers.Transformers.errors;
 import static com.kickstarter.libs.rx.transformers.Transformers.ignoreValues;
 import static com.kickstarter.libs.rx.transformers.Transformers.takeWhen;
+import static com.kickstarter.libs.rx.transformers.Transformers.values;
 
 public interface ProjectHolderViewModel {
 
   interface Inputs {
-    /** Call to configure view holder with a project and the config country. */
-    void configureWith(Pair<Project, String> projectAndCountry);
+    /** Call to configure view holder with ProjectData. */
+    void configureWith(ProjectData projectData);
 
     /** Call when the project social view group is clicked. */
     void projectSocialViewGroupClicked();
@@ -57,11 +66,29 @@ public interface ProjectHolderViewModel {
     /** Emits the project blurb for display. */
     Observable<String> blurbTextViewText();
 
+    /** Emits a boolean determining if the variant blurb should be visible. */
+    Observable<Boolean> blurbVariantIsVisible();
+
     /** Emits the project category for display. */
     Observable<String> categoryTextViewText();
 
-    /** Emits teh comments count for display. */
+    /** Emits the comments count for display. */
     Observable<String> commentsCountTextViewText();
+
+    /** Emits the usd conversion text for display. */
+    Observable<Pair<String, String>> conversionPledgedAndGoalText();
+
+    /** Emits when the usd conversion view should be gone. */
+    Observable<Boolean> conversionTextViewIsGone();
+
+    /** Emits the count of the project creator's backed and launched projects. */
+    Observable<Pair<Integer, Integer>> creatorBackedAndLaunchedProjectsCount();
+
+    /** Emits a boolean determining if the creator details loading container should be visible. */
+    Observable<Boolean> creatorDetailsLoadingContainerIsVisible();
+
+    /** Emits a boolean determining if the variant creator details should be visible. */
+    Observable<Boolean> creatorDetailsVariantIsVisible();
 
     /** Emits the project creator's name for display. */
     Observable<String> creatorNameTextViewText();
@@ -93,6 +120,12 @@ public interface ProjectHolderViewModel {
     /** Emits the pledged amount for display. */
     Observable<String> pledgedTextViewText();
 
+    /** Emits the string resource ID of the project dashboard button. */
+    Observable<Integer> projectDashboardButtonText();
+
+    /** Emits a boolean determining if the project dashboard container should be visible. */
+    Observable<Boolean> projectDashboardContainerIsGone();
+
     /** Emits the date time to be displayed in the disclaimer. */
     Observable<DateTime> projectDisclaimerGoalReachedDateTime();
 
@@ -101,6 +134,12 @@ public interface ProjectHolderViewModel {
 
     /** Emits when the disclaimer view should be gone. */
     Observable<Boolean> projectDisclaimerTextViewIsGone();
+
+    /** Emits the localized date time to be displayed in the launch date text view. */
+    Observable<String> projectLaunchDate();
+
+    /** Emits when the launch date view should be gone. */
+    Observable<Boolean> projectLaunchDateIsGone();
 
     /** Emits the background drawable for the metadata view group. */
     Observable<Integer> projectMetadataViewGroupBackgroundDrawableInt();
@@ -123,10 +162,10 @@ public interface ProjectHolderViewModel {
     /** Emits the social image view url for display. */
     Observable<String> projectSocialImageViewUrl();
 
-    /** Emits the list of friends to display display in the facepile. */
+    /** Emits the list of friends to display display in the facepile.*/
     Observable<List<User>> projectSocialTextViewFriends();
 
-    /**  Emits when the social view group should be gone. */
+    /** Emits when the social view group should be gone. */
     Observable<Boolean> projectSocialViewGroupIsGone();
 
     /** Emits the state background color int for display. */
@@ -156,25 +195,29 @@ public interface ProjectHolderViewModel {
     /** Emits when we should start the {@link com.kickstarter.ui.activities.ProjectSocialActivity}. */
     Observable<Project> startProjectSocialActivity();
 
-    /** Emits the updates count for display. s*/
+    /** Emits the updates count for display. */
     Observable<String> updatesCountTextViewText();
-
-    /** Emits the usd conversion text for display. */
-    Observable<Pair<String, String>> usdConversionPledgedAndGoalText();
-
-    /** Emits when the usd conversion view should be gone. */
-    Observable<Boolean> usdConversionTextViewIsGone();
   }
 
   final class ViewModel extends ActivityViewModel<ProjectViewHolder> implements Inputs, Outputs {
+    private final ApolloClientType apolloClient;
+    private final CurrentUserType currentUser;
     private final KSCurrency ksCurrency;
+    private final ExperimentsClientType optimizely;
 
     public ViewModel(final @NonNull Environment environment) {
       super(environment);
-      this.ksCurrency = environment.ksCurrency();
 
-      final Observable<Project> project = this.projectAndCountry.map(PairUtils::first);
-      final Observable<ProjectUtils.Metadata> projectMetadata = project.map(ProjectUtils::metadataForProject);
+      this.apolloClient = environment.apolloClient();
+      this.currentUser = environment.currentUser();
+      this.ksCurrency = environment.ksCurrency();
+      this.optimizely = environment.optimizely();
+
+      final Observable<Project> project = this.projectData
+        .map(ProjectData::project);
+
+      final Observable<ProjectUtils.Metadata> projectMetadata = project
+        .map(ProjectUtils::metadataForProject);
 
       this.avatarPhotoUrl = project.map(p -> p.creator().avatar().medium());
       this.backersCountTextViewText = project.map(Project::backersCount).map(NumberUtils::format);
@@ -184,6 +227,18 @@ public interface ProjectHolderViewModel {
         .map(BooleanUtils::negate);
 
       this.blurbTextViewText = project.map(Project::blurb);
+
+      final Observable<Pair<ProjectData, User>> projectDataAndCurrentUser = this.projectData
+        .compose(combineLatestPair(this.currentUser.observable()));
+
+      projectDataAndCurrentUser
+        .map(projectDataAndUser -> new ExperimentData(projectDataAndUser.second, projectDataAndUser.first
+          .refTagFromIntent(), projectDataAndUser.first.refTagFromCookie()))
+        .map(experimentData -> this.optimizely.variant(OptimizelyExperiment.Key.CAMPAIGN_DETAILS, experimentData))
+        .map(variant -> variant != OptimizelyExperiment.Variant.CONTROL)
+        .compose(bindToLifecycle())
+        .subscribe(this.blurbVariantIsVisible::onNext);
+
       this.categoryTextViewText = project.map(Project::category).filter(ObjectUtils::isNotNull).map(Category::name);
 
       this.commentsCountTextViewText = project
@@ -191,7 +246,54 @@ public interface ProjectHolderViewModel {
         .filter(ObjectUtils::isNotNull)
         .map(NumberUtils::format);
 
+      this.conversionTextViewIsGone = project
+        .map(pc -> !pc.currency().equals(pc.currentCurrency()))
+        .map(BooleanUtils::negate);
+
+      this.conversionPledgedAndGoalText = project
+        .map(p -> {
+          final String pledged = this.ksCurrency.format(p.pledged(), p);
+          final String goal = this.ksCurrency.format(p.goal(), p);
+          return Pair.create(pledged, goal);
+        });
+
       this.creatorNameTextViewText = project.map(p -> p.creator().name());
+
+      final Observable<Notification<CreatorDetails>> creatorDetailsNotification = project
+        .take(1)
+        .distinctUntilChanged()
+        .map(Project::slug)
+        .switchMap(slug -> this.apolloClient.creatorDetails(slug)
+          .doOnSubscribe(() ->this.creatorDetailsLoadingContainerIsVisible.onNext(true))
+          .doAfterTerminate(() -> this.creatorDetailsLoadingContainerIsVisible.onNext(false))
+          .materialize())
+        .share();
+
+      creatorDetailsNotification
+        .compose(errors())
+        .map(__ -> false)
+        .compose(bindToLifecycle())
+        .subscribe(this.creatorDetailsVariantIsVisible::onNext);
+
+      final Observable<CreatorDetails> creatorDetails = creatorDetailsNotification
+        .compose(values());
+
+      creatorDetails
+        .map(details -> Pair.create(details.backingsCount(), details.launchedProjectsCount()))
+        .compose(bindToLifecycle())
+        .subscribe(this.creatorBackedAndLaunchedProjectsCount::onNext);
+
+      creatorDetails
+        .compose(combineLatestPair(projectDataAndCurrentUser))
+        .take(1)
+        .map(__ -> __.second)
+        .map(projectDataAndUser -> new ExperimentData(projectDataAndUser.second, projectDataAndUser.first
+          .refTagFromIntent(), projectDataAndUser.first.refTagFromCookie()))
+        .map(experimentData -> this.optimizely.variant(OptimizelyExperiment.Key.CREATOR_DETAILS, experimentData))
+        .map(variant -> variant != OptimizelyExperiment.Variant.CONTROL)
+        .compose(bindToLifecycle())
+        .subscribe(this.creatorDetailsVariantIsVisible::onNext);
+
       this.deadlineCountdownTextViewText = project.map(ProjectUtils::deadlineCountdownValue).map(NumberUtils::format);
 
       this.featuredViewGroupIsGone = projectMetadata
@@ -208,7 +310,7 @@ public interface ProjectHolderViewModel {
         .map(Category::name);
 
       this.goalStringForTextView = project
-        .map(p -> this.ksCurrency.format(p.goal(), p, false, true, RoundingMode.DOWN));
+        .map(p -> this.ksCurrency.formatWithUserPreference(p.goal(), p));
 
       this.locationTextViewText = project
         .map(Project::location)
@@ -223,7 +325,22 @@ public interface ProjectHolderViewModel {
       this.playButtonIsGone = project.map(Project::hasVideo).map(BooleanUtils::negate);
 
       this.pledgedTextViewText = project
-        .map(p -> this.ksCurrency.format(p.pledged(), p, false, true, RoundingMode.DOWN));
+        .map(p -> this.ksCurrency.formatWithUserPreference(p.pledged(), p));
+
+      final Observable<Boolean> userIsCreatorOfProject = project
+        .map(Project::creator)
+        .compose(combineLatestPair(this.currentUser.observable()))
+        .map(creatorAndCurrentUser -> ObjectUtils.isNotNull(creatorAndCurrentUser.second) && creatorAndCurrentUser.first.id() == creatorAndCurrentUser.second.id());
+
+      this.projectDashboardButtonText = project
+        .map(Project::isLive)
+        .map(live -> live ? R.string.View_progress : R.string.View_dashboard)
+        .compose(combineLatestPair(userIsCreatorOfProject))
+        .filter(buttonTextAndIsCreator -> buttonTextAndIsCreator.second)
+        .map(buttonTextAndIsCreator -> buttonTextAndIsCreator.first);
+
+      this.projectDashboardContainerIsGone = userIsCreatorOfProject
+        .map(BooleanUtils::negate);
 
       this.projectDisclaimerGoalReachedDateTime = project
         .filter(Project::isFunded)
@@ -231,9 +348,20 @@ public interface ProjectHolderViewModel {
 
       this.projectDisclaimerGoalNotReachedString = project
         .filter(p -> p.deadline() != null && p.isLive() && !p.isFunded())
-        .map(p -> Pair.create(this.ksCurrency.format(p.goal(), p, true), p.deadline()));
+        .map(p -> Pair.create(this.ksCurrency.format(p.goal(), p), p.deadline()));
 
       this.projectDisclaimerTextViewIsGone = project.map(p -> p.deadline() == null || !p.isLive());
+
+      this.projectLaunchDate = project
+        .map(Project::launchedAt)
+        .filter(ObjectUtils::isNotNull)
+        .map(DateTimeUtils::longDate);
+
+      this.projectLaunchDateIsGone = project
+        .map(Project::launchedAt)
+        .compose(combineLatestPair(userIsCreatorOfProject))
+        .map(launchDateAndIsCreator -> ObjectUtils.isNotNull(launchDateAndIsCreator.first) && BooleanUtils.isTrue(launchDateAndIsCreator.second))
+        .map(BooleanUtils::negate);
 
       this.projectMetadataViewGroupBackgroundDrawableInt = projectMetadata
         .filter(ProjectUtils.Metadata.BACKING::equals)
@@ -290,28 +418,23 @@ public interface ProjectHolderViewModel {
         .map(Project::updatesCount)
         .filter(ObjectUtils::isNotNull)
         .map(NumberUtils::format);
-
-      this.usdConversionTextViewIsGone = this.projectAndCountry
-        .map(pc -> I18nUtils.isCountryUS(pc.second) && !I18nUtils.isCountryUS(pc.first.country()))
-        .map(BooleanUtils::negate);
-
-      this.usdConversionPledgedAndGoalText = project
-        .map(p -> {
-          final String pledged = this.ksCurrency.format(p.pledged(), p);
-          final String goal = this.ksCurrency.format(p.goal(), p);
-          return Pair.create(pledged, goal);
-        });
     }
 
-    private final PublishSubject<Pair<Project, String>> projectAndCountry = PublishSubject.create();
+    private final PublishSubject<ProjectData> projectData = PublishSubject.create();
     private final PublishSubject<Void> projectSocialViewGroupClicked = PublishSubject.create();
 
     private final Observable<String> avatarPhotoUrl;
     private final Observable<String> backersCountTextViewText;
     private final Observable<Boolean> backingViewGroupIsGone;
     private final Observable<String> blurbTextViewText;
+    private final BehaviorSubject<Boolean> blurbVariantIsVisible = BehaviorSubject.create();
     private final Observable<String> categoryTextViewText;
     private final Observable<String> commentsCountTextViewText;
+    private final Observable<Pair<String, String>> conversionPledgedAndGoalText;
+    private final Observable<Boolean> conversionTextViewIsGone;
+    private final BehaviorSubject<Pair<Integer, Integer>> creatorBackedAndLaunchedProjectsCount = BehaviorSubject.create();
+    private final BehaviorSubject<Boolean> creatorDetailsLoadingContainerIsVisible = BehaviorSubject.create();
+    private final BehaviorSubject<Boolean> creatorDetailsVariantIsVisible = BehaviorSubject.create();
     private final Observable<String> creatorNameTextViewText;
     private final Observable<String> deadlineCountdownTextViewText;
     private final Observable<String> featuredTextViewRootCategory;
@@ -322,9 +445,13 @@ public interface ProjectHolderViewModel {
     private final Observable<Boolean> percentageFundedProgressBarIsGone;
     private final Observable<Boolean> playButtonIsGone;
     private final Observable<String> pledgedTextViewText;
+    private final Observable<Integer> projectDashboardButtonText;
+    private final Observable<Boolean> projectDashboardContainerIsGone;
     private final Observable<DateTime> projectDisclaimerGoalReachedDateTime;
     private final Observable<Pair<String, DateTime>> projectDisclaimerGoalNotReachedString;
     private final Observable<Boolean> projectDisclaimerTextViewIsGone;
+    private final Observable<String> projectLaunchDate;
+    private final Observable<Boolean> projectLaunchDateIsGone;
     private final Observable<Integer> projectMetadataViewGroupBackgroundDrawableInt;
     private final Observable<Boolean> projectMetadataViewGroupIsGone;
     private final Observable<String> projectNameTextViewText;
@@ -343,20 +470,18 @@ public interface ProjectHolderViewModel {
     private final Observable<DateTime> setUnsuccessfulProjectStateView;
     private final Observable<Project> startProjectSocialActivity;
     private final Observable<Boolean> shouldSetDefaultStatsMargins;
+    private final BehaviorSubject<Boolean> updatesContainerIsClickable = BehaviorSubject.create();
     private final Observable<String> updatesCountTextViewText;
-    private final Observable<Boolean> usdConversionTextViewIsGone;
-    private final Observable<Pair<String, String>> usdConversionPledgedAndGoalText;
 
     public final Inputs inputs = this;
     public final Outputs outputs = this;
 
-    @Override public void configureWith(final @NonNull Pair<Project, String> projectAndCountry) {
-      this.projectAndCountry.onNext(projectAndCountry);
+    @Override public void configureWith(final @NonNull ProjectData projectData) {
+      this.projectData.onNext(projectData);
     }
     @Override public void projectSocialViewGroupClicked() {
       this.projectSocialViewGroupClicked.onNext(null);
     }
-
     @Override public @NonNull Observable<String> avatarPhotoUrl() {
       return this.avatarPhotoUrl;
     }
@@ -369,11 +494,29 @@ public interface ProjectHolderViewModel {
     @Override public @NonNull Observable<String> blurbTextViewText() {
       return this.blurbTextViewText;
     }
+    @Override public @NonNull Observable<Boolean> blurbVariantIsVisible() {
+      return this.blurbVariantIsVisible;
+    }
     @Override public @NonNull Observable<String> categoryTextViewText() {
       return this.categoryTextViewText;
     }
     @Override public @NonNull Observable<String> commentsCountTextViewText() {
       return this.commentsCountTextViewText;
+    }
+    @Override public @NonNull Observable<Boolean> conversionTextViewIsGone() {
+      return this.conversionTextViewIsGone;
+    }
+    @Override public @NonNull Observable<Pair<String, String>> conversionPledgedAndGoalText() {
+      return this.conversionPledgedAndGoalText;
+    }
+    @Override public @NonNull Observable<Pair<Integer, Integer>> creatorBackedAndLaunchedProjectsCount() {
+      return this.creatorBackedAndLaunchedProjectsCount;
+    }
+    @Override public @NonNull Observable<Boolean> creatorDetailsLoadingContainerIsVisible() {
+      return this.creatorDetailsLoadingContainerIsVisible;
+    }
+    @Override public @NonNull Observable<Boolean> creatorDetailsVariantIsVisible() {
+      return this.creatorDetailsVariantIsVisible;
     }
     @Override public @NonNull Observable<String> creatorNameTextViewText() {
       return this.creatorNameTextViewText;
@@ -405,6 +548,12 @@ public interface ProjectHolderViewModel {
     @Override public @NonNull Observable<String> pledgedTextViewText() {
       return this.pledgedTextViewText;
     }
+    @Override public @NonNull Observable<Integer> projectDashboardButtonText() {
+      return this.projectDashboardButtonText;
+    }
+    @Override public @NonNull Observable<Boolean> projectDashboardContainerIsGone() {
+      return this.projectDashboardContainerIsGone;
+    }
     @Override public @NonNull Observable<DateTime> projectDisclaimerGoalReachedDateTime() {
       return this.projectDisclaimerGoalReachedDateTime;
     }
@@ -413,6 +562,12 @@ public interface ProjectHolderViewModel {
     }
     @Override public @NonNull Observable<Boolean> projectDisclaimerTextViewIsGone() {
       return this.projectDisclaimerTextViewIsGone;
+    }
+    @Override public @NonNull Observable<String> projectLaunchDate() {
+      return this.projectLaunchDate;
+    }
+    @Override public @NonNull Observable<Boolean> projectLaunchDateIsGone() {
+      return this.projectLaunchDateIsGone;
     }
     @Override public @NonNull Observable<Integer> projectMetadataViewGroupBackgroundDrawableInt() {
       return this.projectMetadataViewGroupBackgroundDrawableInt;
@@ -470,12 +625,6 @@ public interface ProjectHolderViewModel {
     }
     @Override public @NonNull Observable<String> updatesCountTextViewText() {
       return this.updatesCountTextViewText;
-    }
-    @Override public @NonNull Observable<Boolean> usdConversionTextViewIsGone() {
-      return this.usdConversionTextViewIsGone;
-    }
-    @Override public @NonNull Observable<Pair<String, String>> usdConversionPledgedAndGoalText() {
-      return this.usdConversionPledgedAndGoalText;
     }
   }
 }

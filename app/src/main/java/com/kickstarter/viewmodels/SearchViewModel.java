@@ -1,12 +1,12 @@
 package com.kickstarter.viewmodels;
 
-import android.support.annotation.NonNull;
 import android.util.Pair;
 
 import com.kickstarter.libs.ActivityViewModel;
 import com.kickstarter.libs.ApiPaginator;
 import com.kickstarter.libs.Environment;
 import com.kickstarter.libs.RefTag;
+import com.kickstarter.libs.utils.IntegerUtils;
 import com.kickstarter.libs.utils.ListUtils;
 import com.kickstarter.libs.utils.StringUtils;
 import com.kickstarter.models.Project;
@@ -18,8 +18,10 @@ import com.kickstarter.ui.activities.SearchActivity;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
+import androidx.annotation.NonNull;
 import rx.Observable;
 import rx.Scheduler;
+import rx.schedulers.Schedulers;
 import rx.subjects.BehaviorSubject;
 import rx.subjects.PublishSubject;
 
@@ -39,6 +41,9 @@ public interface SearchViewModel {
   }
 
   interface Outputs {
+    /** Emits a boolean indicating whether projects are being fetched from the API. */
+    Observable<Boolean> isFetchingProjects();
+
     /** Emits list of popular projects. */
     Observable<List<Project>> popularProjects();
 
@@ -81,6 +86,10 @@ public interface SearchViewModel {
           .loadWithPaginationPath(apiClient::fetchProjects)
           .build();
 
+      paginator.isFetching()
+        .compose(bindToLifecycle())
+        .subscribe(this.isFetchingProjects);
+
       this.search
         .filter(StringUtils::isEmpty)
         .compose(bindToLifecycle())
@@ -119,10 +128,21 @@ public interface SearchViewModel {
       query
         .compose(takePairWhen(pageCount))
         .filter(qp -> StringUtils.isPresent(qp.first))
+        .observeOn(Schedulers.io())
         .compose(bindToLifecycle())
         .subscribe(qp -> this.koala.trackSearchResults(qp.first, qp.second));
 
+      params
+        .compose(takePairWhen(pageCount))
+        .filter(paramsAndPageCount -> paramsAndPageCount.first.sort() != defaultSort && IntegerUtils.intValueOrZero(paramsAndPageCount.second) == 1)
+        .map(paramsAndPageCount -> paramsAndPageCount.first)
+        .observeOn(Schedulers.io())
+        .compose(bindToLifecycle())
+        .subscribe(this.lake::trackSearchResultsLoaded);
+
       this.koala.trackSearchView();
+      this.lake.trackSearchButtonClicked();
+      this.lake.trackSearchPageViewed(defaultParams);
     }
 
     private static final DiscoveryParams.Sort defaultSort = DiscoveryParams.Sort.POPULAR;
@@ -156,6 +176,7 @@ public interface SearchViewModel {
     private final PublishSubject<Project> projectClicked = PublishSubject.create();
     private final PublishSubject<String> search = PublishSubject.create();
 
+    private final BehaviorSubject<Boolean> isFetchingProjects = BehaviorSubject.create();
     private final BehaviorSubject<List<Project>> popularProjects = BehaviorSubject.create();
     private final BehaviorSubject<List<Project>> searchProjects = BehaviorSubject.create();
     private final Observable<Pair<Project, RefTag>> startProjectActivity;
@@ -175,6 +196,9 @@ public interface SearchViewModel {
 
     @Override public @NonNull Observable<Pair<Project, RefTag>> startProjectActivity() {
       return this.startProjectActivity;
+    }
+    @Override public @NonNull Observable<Boolean> isFetchingProjects() {
+      return this.isFetchingProjects;
     }
     @Override public @NonNull Observable<List<Project>> popularProjects() {
       return this.popularProjects;

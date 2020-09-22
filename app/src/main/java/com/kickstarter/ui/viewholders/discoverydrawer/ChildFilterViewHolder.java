@@ -1,10 +1,8 @@
 package com.kickstarter.ui.viewholders.discoverydrawer;
 
 import android.content.Context;
-import android.support.annotation.NonNull;
-import android.support.annotation.Nullable;
+import android.graphics.drawable.Drawable;
 import android.view.View;
-import android.widget.LinearLayout;
 import android.widget.TextView;
 
 import com.kickstarter.R;
@@ -13,8 +11,11 @@ import com.kickstarter.models.Category;
 import com.kickstarter.ui.adapters.data.NavigationDrawerData;
 import com.kickstarter.ui.viewholders.KSViewHolder;
 
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import butterknife.Bind;
 import butterknife.BindColor;
+import butterknife.BindDrawable;
 import butterknife.ButterKnife;
 import butterknife.OnClick;
 import timber.log.Timber;
@@ -22,12 +23,13 @@ import timber.log.Timber;
 import static com.kickstarter.libs.utils.ObjectUtils.requireNonNull;
 
 public final class ChildFilterViewHolder extends KSViewHolder {
-  protected @Bind(R.id.filter_view) LinearLayout filterView;
   protected @Bind(R.id.filter_text_view) TextView filterTextView;
+  protected @BindColor(R.color.accent) int accentColor;
+  protected @BindColor(R.color.ksr_dark_grey_500) int ksrDarkGrayColor;
   protected @BindColor(R.color.ksr_soft_black) int ksrSoftBlackColor;
-  protected @BindColor(R.color.ksr_dark_grey_400) int darkGrayColor;
-  protected @BindColor(R.color.discovery_drawer_item_selected) int filterSelectedColor;
-  protected @BindColor(R.color.transparent) int filterUnselectedColor;
+  protected @BindDrawable(R.drawable.ic_label_green) Drawable labelSelectedDrawable;
+  protected @BindDrawable(R.drawable.ic_label) Drawable labelUnselectedDrawable;
+  protected @BindDrawable(R.drawable.drawer_selected) Drawable selectedBackgroundDrawable;
 
   private final KSString ksString;
 
@@ -60,15 +62,15 @@ public final class ChildFilterViewHolder extends KSViewHolder {
     } else {
       this.filterTextView.setText(this.item.params().filterString(context, this.ksString));
     }
-    if (this.item.selected()) {
-      this.filterTextView.setTextAppearance(context, R.style.CalloutPrimaryMedium);
-      this.filterTextView.setTextColor(this.ksrSoftBlackColor);
-    } else {
-      this.filterTextView.setTextAppearance(context, R.style.CalloutPrimary);
-      this.filterTextView.setTextColor(this.darkGrayColor);
-    }
 
-    this.filterView.setBackgroundColor(this.item.selected() ? this.filterSelectedColor : this.filterUnselectedColor);
+    final int textColor = this.item.selected() ? this.accentColor : this.ksrSoftBlackColor;
+    this.filterTextView.setTextColor(textColor);
+
+    final Drawable iconDrawable = this.item.selected() ? this.labelSelectedDrawable : this.labelUnselectedDrawable;
+    this.filterTextView.setCompoundDrawablesRelativeWithIntrinsicBounds(iconDrawable, null, null, null);
+
+    final Drawable backgroundDrawable = this.item.selected() ? this.selectedBackgroundDrawable : null;
+    this.filterTextView.setBackground(backgroundDrawable);
   }
 
   @OnClick(R.id.filter_text_view)

@@ -12,6 +12,8 @@ require 'milkrun/build'
 require 'milkrun/build_list'
 require 'milkrun/changelog'
 require 'milkrun/checkstyle'
+require 'milkrun/firebase_credentials_extractor'
+require 'milkrun/slack_webhook_extractor'
 require 'milkrun/git'
 require 'milkrun/hockey_app'
 require 'milkrun/i18n_string_resources'
@@ -68,9 +70,10 @@ module Milkrun
   end
 
   def self.s3_client
-    @s3_client ||= Aws::S3::Client.new(
-      credentials: Aws::Credentials.new(Configs[:s3][:access_key], Configs[:s3][:secret_key]),
-      region: 'us-east-1'
-    )
+    @s3_client ||= Aws::S3::Client.new({
+       access_key_id:     ENV['AWS_ACCESS_KEY_ID']     || Configs[:s3][:access_key],
+       secret_access_key: ENV['AWS_SECRET_ACCESS_KEY'] || Configs[:s3][:secret_key],
+       region:            ENV['AWS_REGION']            || 'us-east-1'
+     })
   end
 end

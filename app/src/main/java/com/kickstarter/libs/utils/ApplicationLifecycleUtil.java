@@ -5,8 +5,6 @@ import android.app.Application;
 import android.content.ComponentCallbacks2;
 import android.content.res.Configuration;
 import android.os.Bundle;
-import android.support.annotation.NonNull;
-import android.support.annotation.Nullable;
 
 import com.facebook.appevents.AppEventsLogger;
 import com.kickstarter.KSApplication;
@@ -14,14 +12,20 @@ import com.kickstarter.libs.CurrentConfigType;
 import com.kickstarter.libs.CurrentUserType;
 import com.kickstarter.libs.Koala;
 import com.kickstarter.libs.Logout;
+import com.kickstarter.libs.qualifiers.KoalaTracker;
+import com.kickstarter.libs.qualifiers.LakeTracker;
 import com.kickstarter.libs.rx.transformers.Transformers;
 import com.kickstarter.services.ApiClientType;
 import com.kickstarter.services.apiresponses.ErrorEnvelope;
 
 import javax.inject.Inject;
 
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+
 public final class ApplicationLifecycleUtil implements Application.ActivityLifecycleCallbacks, ComponentCallbacks2 {
-  protected @Inject Koala koala;
+  protected @Inject @KoalaTracker Koala koala;
+  protected @Inject @LakeTracker Koala lake;
   protected @Inject ApiClientType client;
   protected @Inject CurrentConfigType config;
   protected @Inject CurrentUserType currentUser;
@@ -49,7 +53,7 @@ public final class ApplicationLifecycleUtil implements Application.ActivityLifec
       this.koala.trackAppOpen();
 
       // Facebook: logs 'install' and 'app activate' App Events.
-      AppEventsLogger.activateApp(activity);
+      AppEventsLogger.activateApp(activity.getApplication());
 
       // Refresh the config file
       this.client.config()

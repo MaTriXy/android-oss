@@ -1,18 +1,17 @@
 package com.kickstarter.viewmodels;
 
-import android.support.annotation.NonNull;
-
 import com.kickstarter.KSRobolectricTestCase;
-import com.kickstarter.factories.ApiExceptionFactory;
-import com.kickstarter.factories.ConfigFactory;
 import com.kickstarter.libs.Environment;
+import com.kickstarter.mock.factories.ApiExceptionFactory;
+import com.kickstarter.mock.factories.ConfigFactory;
+import com.kickstarter.mock.services.MockApiClient;
 import com.kickstarter.services.ApiClientType;
-import com.kickstarter.services.MockApiClient;
 import com.kickstarter.services.apiresponses.AccessTokenEnvelope;
 import com.kickstarter.services.apiresponses.ErrorEnvelope;
 
 import org.junit.Test;
 
+import androidx.annotation.NonNull;
 import rx.Observable;
 import rx.observers.TestSubscriber;
 
@@ -61,6 +60,7 @@ public class SignupViewModelTest extends KSRobolectricTestCase {
     formSubmittingTest.assertValues(true, false);
     signupSuccessTest.assertValueCount(1);
     koalaTest.assertValues("User Signup", "Signup Newsletter Toggle", "Login", "New User");
+    this.lakeTest.assertValues("Sign Up Submit Button Clicked");
   }
 
   @Test
@@ -99,6 +99,7 @@ public class SignupViewModelTest extends KSRobolectricTestCase {
     signupSuccessTest.assertValueCount(0);
     signupErrorTest.assertValueCount(1);
     koalaTest.assertValues("User Signup", "Signup Newsletter Toggle", "Errored User Signup");
+    this.lakeTest.assertValues("Sign Up Submit Button Clicked");
   }
 
   @Test
@@ -135,5 +136,6 @@ public class SignupViewModelTest extends KSRobolectricTestCase {
     signupSuccessTest.assertValueCount(0);
     signupErrorTest.assertValueCount(1);
     koalaTest.assertValues("User Signup", "Signup Newsletter Toggle", "Errored User Signup");
+    this.lakeTest.assertValues("Sign Up Submit Button Clicked");
   }
 }

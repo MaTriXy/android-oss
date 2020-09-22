@@ -7,16 +7,23 @@ import com.kickstarter.KSRobolectricTestCase;
 import org.junit.Test;
 
 public final class KSUriTest extends KSRobolectricTestCase {
+  private final Uri checkoutUri = Uri.parse("https://www.ksr.com/projects/creator/project/pledge");
   private final Uri discoverCategoriesUri = Uri.parse("https://www.ksr.com/discover/categories/art");
   private final Uri discoverScopeUri = Uri.parse("https://www.kickstarter.com/discover/ending-soon");
   private final Uri discoverPlacesUri = Uri.parse("https://www.ksr.com/discover/places/newest");
-  private final String webEndpoint = "https://www.ksr.com";
   private final Uri newGuestCheckoutUri = Uri.parse("https://www.ksr.com/checkouts/1/guest/new");
   private final Uri projectUri = Uri.parse("https://www.ksr.com/projects/creator/project");
+  private final Uri projectPreviewUri = Uri.parse("https://www.ksr.com/projects/creator/project?token=token");
   private final Uri projectSurveyUri = Uri.parse("https://www.ksr.com/projects/creator/project/surveys/survey-param");
   private final Uri updatesUri = Uri.parse("https://www.ksr.com/projects/creator/project/posts");
   private final Uri updateUri = Uri.parse("https://www.ksr.com/projects/creator/project/posts/id");
   private final Uri userSurveyUri = Uri.parse("https://www.ksr.com/users/user-param/surveys/survey-id");
+  private final String webEndpoint = "https://www.ksr.com";
+
+  @Test
+  public void testKSUri_isCheckoutUri() {
+    assertTrue(KSUri.isCheckoutUri(this.checkoutUri, this.webEndpoint));
+  }
 
   @Test
   public void testKSUri_isDiscoverCategoriesPath() {
@@ -54,7 +61,7 @@ public final class KSUriTest extends KSRobolectricTestCase {
 
     assertTrue(KSUri.isWebViewUri(ksrUri, this.webEndpoint));
     assertFalse(KSUri.isWebViewUri(uri, this.webEndpoint));
-    assertFalse(KSUri.isWebViewUri(ksrGraphUri, this.webEndpoint));
+    assertTrue(KSUri.isWebViewUri(ksrGraphUri, this.webEndpoint));
     assertFalse(KSUri.isWebViewUri(graphUri, this.webEndpoint));
     assertFalse(KSUri.isWebViewUri(favIconUri, this.webEndpoint));
   }
@@ -66,15 +73,6 @@ public final class KSUriTest extends KSRobolectricTestCase {
 
     assertTrue(KSUri.isKSFavIcon(ksrUri, this.webEndpoint));
     assertFalse(KSUri.isKSFavIcon(uri, this.webEndpoint));
-  }
-
-  @Test
-  public void testKSUri_isKSGraphQLUri() {
-    final Uri ksrGraphUri = Uri.parse("https://www.ksr.com/graph");
-    final Uri graphUri = Uri.parse("https://www.hello-world.org/graph");
-
-    assertTrue(KSUri.isKSGraphQLUri(ksrGraphUri, this.webEndpoint));
-    assertFalse(KSUri.isKSGraphQLUri(graphUri, this.webEndpoint));
   }
 
   @Test
@@ -119,7 +117,14 @@ public final class KSUriTest extends KSRobolectricTestCase {
   @Test
   public void testKSUri_isProjectUri() {
     assertTrue(KSUri.isProjectUri(this.projectUri, this.webEndpoint));
+    assertTrue(KSUri.isProjectUri(this.projectPreviewUri, this.webEndpoint));
     assertFalse(KSUri.isProjectUri(this.updateUri, this.webEndpoint));
+  }
+
+  @Test
+  public void testKSUri_isProjectPreviewUri() {
+    assertTrue(KSUri.isProjectPreviewUri(this.projectPreviewUri, this.webEndpoint));
+    assertFalse(KSUri.isProjectPreviewUri(this.projectUri, this.webEndpoint));
   }
 
   @Test

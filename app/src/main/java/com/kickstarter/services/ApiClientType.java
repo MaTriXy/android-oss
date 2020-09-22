@@ -1,19 +1,16 @@
 package com.kickstarter.services;
 
-import android.support.annotation.NonNull;
-import android.support.annotation.Nullable;
-
+import com.google.gson.JsonObject;
 import com.kickstarter.libs.Config;
 import com.kickstarter.models.Backing;
 import com.kickstarter.models.Category;
 import com.kickstarter.models.Comment;
-import com.kickstarter.models.Empty;
 import com.kickstarter.models.Location;
 import com.kickstarter.models.Message;
 import com.kickstarter.models.MessageThread;
 import com.kickstarter.models.Project;
 import com.kickstarter.models.ProjectNotification;
-import com.kickstarter.services.apiresponses.ProjectStatsEnvelope;
+import com.kickstarter.models.Reward;
 import com.kickstarter.models.SurveyResponse;
 import com.kickstarter.models.Update;
 import com.kickstarter.models.User;
@@ -23,12 +20,17 @@ import com.kickstarter.services.apiresponses.CommentsEnvelope;
 import com.kickstarter.services.apiresponses.DiscoverEnvelope;
 import com.kickstarter.services.apiresponses.MessageThreadEnvelope;
 import com.kickstarter.services.apiresponses.MessageThreadsEnvelope;
+import com.kickstarter.services.apiresponses.ProjectStatsEnvelope;
 import com.kickstarter.services.apiresponses.ProjectsEnvelope;
+import com.kickstarter.services.apiresponses.ShippingRulesEnvelope;
+import com.kickstarter.services.apiresponses.UpdatesEnvelope;
 import com.kickstarter.ui.data.Mailbox;
 import com.kickstarter.ui.data.MessageSubject;
 
 import java.util.List;
 
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import rx.Observable;
 
 public interface ApiClientType {
@@ -82,9 +84,15 @@ public interface ApiClientType {
 
   @NonNull Observable<MessageThreadsEnvelope> fetchMessageThreadsWithPaginationPath(final @NonNull String paginationPath);
 
+  @NonNull Observable<ShippingRulesEnvelope> fetchShippingRules(final @NonNull Project project, final @NonNull Reward reward);
+
   @NonNull Observable<Update> fetchUpdate(final @NonNull String projectParam, final @NonNull String updateParam);
 
   @NonNull Observable<Update> fetchUpdate(final @NonNull Update update);
+
+  @NonNull Observable<UpdatesEnvelope> fetchUpdates(final @NonNull Project project);
+
+  @NonNull Observable<UpdatesEnvelope> fetchUpdates(final @NonNull String paginationPath);
 
   @NonNull Observable<AccessTokenEnvelope> loginWithFacebook(final @NonNull String accessToken);
 
@@ -102,7 +110,7 @@ public interface ApiClientType {
 
   @NonNull Observable<Comment> postComment(final @NonNull Update update, final @NonNull String body);
 
-  @NonNull Observable<Empty> registerPushToken(final @NonNull String token);
+  @NonNull Observable<JsonObject> registerPushToken(final @NonNull String token);
 
   @NonNull Observable<AccessTokenEnvelope> registerWithFacebook(final @NonNull String fbAccessToken, boolean sendNewsletters);
 

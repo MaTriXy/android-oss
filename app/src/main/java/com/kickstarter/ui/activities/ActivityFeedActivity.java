@@ -2,11 +2,6 @@ package com.kickstarter.ui.activities;
 
 import android.content.Intent;
 import android.os.Bundle;
-import android.support.annotation.NonNull;
-import android.support.annotation.Nullable;
-import android.support.v4.widget.SwipeRefreshLayout;
-import android.support.v7.widget.LinearLayoutManager;
-import android.support.v7.widget.RecyclerView;
 
 import com.kickstarter.R;
 import com.kickstarter.libs.ActivityRequestCodes;
@@ -19,6 +14,7 @@ import com.kickstarter.libs.qualifiers.RequiresActivityViewModel;
 import com.kickstarter.libs.utils.ApplicationUtils;
 import com.kickstarter.libs.utils.ObjectUtils;
 import com.kickstarter.models.Activity;
+import com.kickstarter.models.ErroredBacking;
 import com.kickstarter.models.Project;
 import com.kickstarter.models.SurveyResponse;
 import com.kickstarter.ui.IntentKey;
@@ -28,6 +24,11 @@ import com.kickstarter.viewmodels.ActivityFeedViewModel;
 
 import java.util.List;
 
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 import butterknife.Bind;
 import butterknife.ButterKnife;
 
@@ -54,7 +55,7 @@ public final class ActivityFeedActivity extends BaseActivity<ActivityFeedViewMod
     this.recyclerView.setAdapter(this.adapter);
     this.recyclerView.setLayoutManager(new LinearLayoutManager(this));
 
-    this.recyclerViewPaginator = new RecyclerViewPaginator(this.recyclerView, this.viewModel.inputs::nextPage);
+    this.recyclerViewPaginator = new RecyclerViewPaginator(this.recyclerView, this.viewModel.inputs::nextPage, this.viewModel.outputs.isFetchingActivities());
     this.swipeRefresher = new SwipeRefresher(
       this, this.swipeRefreshLayout, this.viewModel.inputs::refresh, this.viewModel.outputs::isFetchingActivities
     );
@@ -71,6 +72,11 @@ public final class ActivityFeedActivity extends BaseActivity<ActivityFeedViewMod
       .compose(observeForUI())
       .subscribe(this::showActivities);
 
+    this.viewModel.outputs.erroredBackings()
+      .compose(bindToLifecycle())
+      .compose(observeForUI())
+      .subscribe(this::showErroredBackings);
+
     this.viewModel.outputs.goToDiscovery()
       .compose(bindToLifecycle())
       .compose(observeForUI())
@@ -85,6 +91,11 @@ public final class ActivityFeedActivity extends BaseActivity<ActivityFeedViewMod
       .compose(bindToLifecycle())
       .compose(observeForUI())
       .subscribe(this::startProjectActivity);
+
+    this.viewModel.outputs.startFixPledge()
+      .compose(bindToLifecycle())
+      .compose(observeForUI())
+      .subscribe(this::startFixPledge);
 
     this.viewModel.outputs.startUpdateActivity()
       .compose(bindToLifecycle())
@@ -124,6 +135,10 @@ public final class ActivityFeedActivity extends BaseActivity<ActivityFeedViewMod
     this.adapter.takeActivities(activities);
   }
 
+  private void showErroredBackings(final @NonNull List<ErroredBacking> erroredBackings) {
+    this.adapter.takeErroredBackings(erroredBackings);
+  }
+
   private void showSurveys(final @NonNull List<SurveyResponse> surveyResponses) {
     this.adapter.takeSurveys(surveyResponses);
   }
@@ -136,6 +151,14 @@ public final class ActivityFeedActivity extends BaseActivity<ActivityFeedViewMod
     final Intent intent = new Intent(this, LoginToutActivity.class)
       .putExtra(IntentKey.LOGIN_REASON, LoginReason.ACTIVITY_FEED);
     startActivityForResult(intent, ActivityRequestCodes.LOGIN_FLOW);
+  }
+
+  private void startFixPledge(final @NonNull String projectSlug) {
+    final Intent intent = new Intent(this, ProjectActivity.class)
+      .putExtra(IntentKey.PROJECT_PARAM, projectSlug)
+      .putExtra(IntentKey.EXPAND_PLEDGE_SHEET, true)
+      .putExtra(IntentKey.REF_TAG, RefTag.activity());
+    startActivityWithTransition(intent, R.anim.slide_in_right, R.anim.fade_out_slide_out_left);
   }
 
   private void startProjectActivity(final @NonNull Project project) {

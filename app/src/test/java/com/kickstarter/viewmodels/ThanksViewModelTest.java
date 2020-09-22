@@ -1,36 +1,43 @@
 package com.kickstarter.viewmodels;
 
 import android.content.Intent;
-import android.support.annotation.NonNull;
 import android.util.Pair;
 
 import com.kickstarter.KSRobolectricTestCase;
-import com.kickstarter.factories.CategoryFactory;
-import com.kickstarter.factories.LocationFactory;
-import com.kickstarter.factories.ProjectFactory;
-import com.kickstarter.factories.UserFactory;
 import com.kickstarter.libs.CurrentUserType;
 import com.kickstarter.libs.Environment;
 import com.kickstarter.libs.MockCurrentUser;
 import com.kickstarter.libs.RefTag;
 import com.kickstarter.libs.preferences.MockBooleanPreference;
+import com.kickstarter.mock.factories.CategoryFactory;
+import com.kickstarter.mock.factories.CheckoutDataFactory;
+import com.kickstarter.mock.factories.LocationFactory;
+import com.kickstarter.mock.factories.ProjectDataFactory;
+import com.kickstarter.mock.factories.ProjectFactory;
+import com.kickstarter.mock.factories.RewardFactory;
+import com.kickstarter.mock.factories.UserFactory;
+import com.kickstarter.mock.services.MockApiClient;
 import com.kickstarter.models.Category;
 import com.kickstarter.models.Project;
 import com.kickstarter.models.User;
 import com.kickstarter.services.DiscoveryParams;
-import com.kickstarter.services.MockApiClient;
 import com.kickstarter.ui.IntentKey;
 import com.kickstarter.ui.adapters.data.ThanksData;
+import com.kickstarter.ui.data.CheckoutData;
+import com.kickstarter.ui.data.PledgeData;
+import com.kickstarter.ui.data.PledgeFlowContext;
 
 import org.junit.Test;
 
 import java.util.Arrays;
 
+import androidx.annotation.NonNull;
 import rx.observers.TestSubscriber;
 
 public final class ThanksViewModelTest extends KSRobolectricTestCase {
   private ThanksViewModel.ViewModel vm;
   private final TestSubscriber<ThanksData> adapterData = new TestSubscriber<>();
+  private final TestSubscriber<Void> finish = new TestSubscriber<>();
   private final TestSubscriber<Void> showGamesNewsletterDialogTest = new TestSubscriber<>();
   private final TestSubscriber<Void> showRatingDialogTest = new TestSubscriber<>();
   private final TestSubscriber<Void> showConfirmGamesNewsletterDialogTest = TestSubscriber.create();
@@ -40,6 +47,7 @@ public final class ThanksViewModelTest extends KSRobolectricTestCase {
   protected void setUpEnvironment(final @NonNull Environment environment) {
     this.vm = new ThanksViewModel.ViewModel(environment);
     this.vm.outputs.adapterData().subscribe(this.adapterData);
+    this.vm.outputs.finish().subscribe(this.finish);
     this.vm.outputs.showGamesNewsletterDialog().subscribe(this.showGamesNewsletterDialogTest);
     this.vm.outputs.showRatingDialog().subscribe(this.showRatingDialogTest);
     this.vm.outputs.showConfirmGamesNewsletterDialog().subscribe(this.showConfirmGamesNewsletterDialogTest);
@@ -58,6 +66,18 @@ public final class ThanksViewModelTest extends KSRobolectricTestCase {
 
     this.vm.intent(new Intent().putExtra(IntentKey.PROJECT, project));
     this.adapterData.assertValueCount(1);
+  }
+
+  @Test
+  public void testFinishEmits() {
+    setUpEnvironment(environment());
+
+    final Intent intent = new Intent()
+      .putExtra(IntentKey.PROJECT, ProjectFactory.project());
+    this.vm.intent(intent);
+    this.vm.inputs.closeButtonClicked();
+
+    this.finish.assertValueCount(1);
   }
 
   @Test
@@ -282,5 +302,34 @@ public final class ThanksViewModelTest extends KSRobolectricTestCase {
     this.vm.inputs.projectCardViewHolderClicked(project);
     this.startProjectTest.assertValues(Pair.create(project, RefTag.thanks()));
     this.koalaTest.assertValue("Checkout Finished Discover Open Project");
+  }
+
+  @Test
+  public void testTracking_whenCheckoutDataAndPledgeDataExtrasPresent() {
+    setUpEnvironment(environment());
+
+    final Project project = ProjectFactory.project();
+    final CheckoutData checkoutData = CheckoutDataFactory.Companion.checkoutData(3L,
+            20.0, 30.0);
+    final PledgeData pledgeData = PledgeData.Companion.with(PledgeFlowContext.NEW_PLEDGE,
+            ProjectDataFactory.Companion.project(project), RewardFactory.reward());
+    final Intent intent = new Intent()
+            .putExtra(IntentKey.CHECKOUT_DATA, checkoutData)
+            .putExtra(IntentKey.PLEDGE_DATA, pledgeData)
+            .putExtra(IntentKey.PROJECT, project);
+    this.vm.intent(intent);
+
+    this.lakeTest.assertValue("Thanks Page Viewed");
+  }
+
+  @Test
+  public void testTracking_whenCheckoutDataAndPledgeDataExtrasNull() {
+    setUpEnvironment(environment());
+
+    final Intent intent = new Intent()
+            .putExtra(IntentKey.PROJECT, ProjectFactory.project());
+    this.vm.intent(intent);
+
+    this.lakeTest.assertNoValues();
   }
 }

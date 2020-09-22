@@ -3,66 +3,39 @@
   xmlns:android="http://schemas.android.com/apk/res/android"
   android:layout_width="match_parent"
   android:layout_height="wrap_content"
-  android:layout_marginBottom="@dimen/grid_1"
-  android:layout_marginTop="@dimen/discovery_drawer_status_bar_height"
-  android:theme="@style/ThemeOverlay.AppCompat.Light"
-  android:gravity="center_vertical"
+  android:background="@color/discovery_drawer_header"
+  android:baselineAligned="false"
   android:orientation="vertical">
 
-  <LinearLayout
+  <TextView
+    android:id="@+id/logged_out_text_view"
+    style="@style/DrawerTextView"
     android:layout_width="match_parent"
-    android:layout_height="@dimen/grid_9"
-    android:paddingTop="@dimen/grid_1"
-    android:paddingBottom="@dimen/grid_1"
-    android:background="@color/discovery_drawer_header"
-    android:baselineAligned="false"
-    android:orientation="horizontal"
-    android:gravity="center_vertical">
+    android:layout_height="wrap_content"
+    android:drawableStart="@drawable/ic_face"
+    android:foreground="@drawable/click_indicator_light"
+    android:paddingBottom="@dimen/grid_3"
+    android:paddingTop="@dimen/grid_3"
+    android:text="@string/discovery_onboarding_buttons_signup_or_login" />
 
-    <LinearLayout
-      android:id="@+id/logged_out_container"
-      android:orientation="horizontal"
-      android:background="@drawable/click_indicator_light"
-      android:paddingStart="@dimen/grid_2"
-      android:paddingEnd="@dimen/grid_2"
-      android:layout_weight="1"
-      android:gravity="center_vertical"
-      android:layout_width="0dp"
-      android:layout_height="match_parent">
+  <include layout="@layout/horizontal_line_1dp_view" />
 
-      <com.kickstarter.ui.views.IconButton
-        android:id="@+id/logged_out_icon_button"
-        android:gravity="center"
-        android:text="@string/account_circle"
-        android:textColor="@color/ksr_soft_black"
-        android:textSize="30sp"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content" />
+  <include layout="@layout/internal_tools_button_view" />
 
-      <TextView
-        android:id="@+id/logged_out_text_view"
-        style="@style/BodyPrimaryMedium"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="@dimen/grid_1"
-        android:text="@string/tabbar_login"
-        android:textColor="@color/ksr_soft_black" />
+  <TextView
+    android:id="@+id/drawer_activity"
+    style="@style/DrawerTextView"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:drawableStart="@drawable/icon__bolt"
+    android:text="@string/tabbar_activity" />
 
-    </LinearLayout>
-
-    <LinearLayout
-      android:id="@+id/internal_tools_container"
-      android:orientation="horizontal"
-      android:gravity="center_vertical"
-      android:layout_width="wrap_content"
-      android:layout_height="wrap_content">
-
-      <include layout="@layout/internal_tools_button_view" />
-
-    </LinearLayout>
-
-  </LinearLayout>
-
-  <include layout="@layout/horizontal_line_0_5dp_view" />
+  <TextView
+    android:id="@+id/drawer_help"
+    style="@style/DrawerTextView"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:drawableStart="@drawable/ic_help"
+    android:text="@string/Help" />
 
 </LinearLayout>

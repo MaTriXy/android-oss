@@ -1,7 +1,6 @@
 package com.kickstarter.libs;
 
 import android.content.pm.PackageInfo;
-import android.support.annotation.NonNull;
 
 import com.kickstarter.BuildConfig;
 
@@ -9,6 +8,8 @@ import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
 import java.util.Locale;
+
+import androidx.annotation.NonNull;
 
 public final class Build {
   private final PackageInfo packageInfo;
@@ -21,12 +22,12 @@ public final class Build {
     return this.packageInfo.packageName;
   }
 
-  public DateTime dateTime() {
+  public DateTime buildDate() {
     return new DateTime(BuildConfig.BUILD_DATE, DateTimeZone.UTC).withZone(DateTimeZone.getDefault());
   }
 
   public static boolean isInternal() {
-    return BuildConfig.FLAVOR_AUDIENCE.equals("internal");
+    return BuildConfig.FLAVOR.equals("internal");
   }
 
   public static boolean isExternal() {
@@ -61,7 +62,7 @@ public final class Build {
 
   public String variant() {
     // e.g. internalDebug, externalRelease
-    return new StringBuilder().append(BuildConfig.FLAVOR_AUDIENCE)
+    return new StringBuilder().append(BuildConfig.FLAVOR)
       .append(BuildConfig.BUILD_TYPE.substring(0, 1).toUpperCase(Locale.US))
       .append(BuildConfig.BUILD_TYPE.substring(1))
       .toString();

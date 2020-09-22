@@ -2,11 +2,8 @@ package com.kickstarter.ui.intentmappers;
 
 import android.content.Intent;
 import android.net.Uri;
-import android.support.annotation.NonNull;
-import android.support.annotation.Nullable;
 
 import com.kickstarter.libs.RefTag;
-import com.kickstarter.libs.rx.transformers.Transformers;
 import com.kickstarter.libs.utils.ObjectUtils;
 import com.kickstarter.models.Project;
 import com.kickstarter.services.ApiClientType;
@@ -16,6 +13,8 @@ import com.kickstarter.ui.IntentKey;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import rx.Observable;
 
 public final class ProjectIntentMapper {
@@ -44,8 +43,7 @@ public final class ProjectIntentMapper {
       .retry(3);
 
     return projectFromParceledProject
-      .mergeWith(projectFromParceledParam)
-      .compose(Transformers.neverError());
+      .mergeWith(projectFromParceledParam);
   }
 
   /**

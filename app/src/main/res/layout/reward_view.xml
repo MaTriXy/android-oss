@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<android.support.v7.widget.CardView
+<androidx.cardview.widget.CardView
   xmlns:android="http://schemas.android.com/apk/res/android"
   xmlns:app="http://schemas.android.com/apk/res-auto"
   xmlns:tools="http://schemas.android.com/tools"
@@ -46,7 +46,7 @@
           tools:text="$20 AUD" />
 
         <TextView
-          android:id="@+id/reward_usd_conversion_text_view"
+          android:id="@+id/reward_preferred_conversion_text_view"
           style="@style/Caption1Secondary"
           android:layout_width="wrap_content"
           android:layout_height="wrap_content"
@@ -98,7 +98,7 @@
           android:layout_height="wrap_content"
           android:text="@string/rewards_info_includes" />
 
-        <android.support.v7.widget.RecyclerView
+        <androidx.recyclerview.widget.RecyclerView
           android:id="@+id/reward_rewards_item_recycler_view"
           android:paddingTop="@dimen/grid_1"
           android:layout_width="match_parent"
@@ -175,12 +175,12 @@
 
     <View
       android:id="@+id/reward_white_overlay_view"
-      android:visibility="invisible"
-      android:alpha="0.6"
       android:layout_width="match_parent"
       android:layout_height="match_parent"
-      android:background="@color/white" />
+      android:alpha="0.6"
+      android:background="@color/white"
+      android:visibility="invisible" />
 
   </FrameLayout>
 
-</android.support.v7.widget.CardView>
+</androidx.cardview.widget.CardView>

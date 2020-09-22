@@ -2,9 +2,6 @@ package com.kickstarter.ui.toolbars;
 
 import android.content.Context;
 import android.content.Intent;
-import android.support.annotation.NonNull;
-import android.support.annotation.Nullable;
-import android.support.v4.view.GravityCompat;
 import android.util.AttributeSet;
 import android.widget.ImageButton;
 import android.widget.TextView;
@@ -12,20 +9,19 @@ import android.widget.TextView;
 import com.kickstarter.R;
 import com.kickstarter.libs.KSString;
 import com.kickstarter.services.DiscoveryParams;
-import com.kickstarter.ui.activities.ActivityFeedActivity;
-import com.kickstarter.ui.activities.CreatorDashboardActivity;
 import com.kickstarter.ui.activities.DiscoveryActivity;
 import com.kickstarter.ui.activities.SearchActivity;
 
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.core.view.GravityCompat;
 import butterknife.Bind;
 import butterknife.ButterKnife;
 import butterknife.OnClick;
 
 public final class DiscoveryToolbar extends KSToolbar {
-  @Bind(R.id.activity_feed_button) ImageButton activityFeedButton;
-  @Bind(R.id.creator_dashboard_button) ImageButton creatorDashboardButton;
   @Bind(R.id.filter_text_view) TextView filterTextView;
-  @Bind(R.id.menu_button) TextView menuButton;
+  @Bind(R.id.menu_button) ImageButton menuButton;
   @Bind(R.id.search_button) ImageButton searchButton;
 
   private KSString ksString;
@@ -52,18 +48,6 @@ public final class DiscoveryToolbar extends KSToolbar {
 
     ButterKnife.bind(this);
     this.ksString = environment().ksString();
-  }
-
-  @OnClick(R.id.activity_feed_button)
-  protected void activityFeedButtonClick() {
-    final Context context = getContext();
-    context.startActivity(new Intent(context, ActivityFeedActivity.class));
-  }
-
-  @OnClick(R.id.creator_dashboard_button)
-  protected void creatorDashboardButtonClick() {
-    final Context context = getContext();
-    context.startActivity(new Intent(context, CreatorDashboardActivity.class));
   }
 
   @OnClick({R.id.menu_button, R.id.filter_text_view})

@@ -2,11 +2,6 @@ package com.kickstarter.ui.activities;
 
 import android.content.Intent;
 import android.os.Bundle;
-import android.support.annotation.NonNull;
-import android.support.annotation.Nullable;
-import android.support.v7.app.AlertDialog;
-import android.support.v7.widget.LinearLayoutManager;
-import android.support.v7.widget.RecyclerView;
 import android.util.Pair;
 
 import com.kickstarter.R;
@@ -14,7 +9,6 @@ import com.kickstarter.libs.BaseActivity;
 import com.kickstarter.libs.KSString;
 import com.kickstarter.libs.RefTag;
 import com.kickstarter.libs.qualifiers.RequiresActivityViewModel;
-import com.kickstarter.libs.utils.ApplicationUtils;
 import com.kickstarter.libs.utils.ViewUtils;
 import com.kickstarter.models.Project;
 import com.kickstarter.services.DiscoveryParams;
@@ -24,6 +18,11 @@ import com.kickstarter.viewmodels.ThanksViewModel;
 
 import java.util.concurrent.TimeUnit;
 
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.appcompat.app.AlertDialog;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
 import butterknife.Bind;
 import butterknife.BindString;
 import butterknife.ButterKnife;
@@ -54,7 +53,7 @@ public final class ThanksActivity extends BaseActivity<ThanksViewModel.ViewModel
     this.ksString = environment().ksString();
 
     final LinearLayoutManager layoutManager = new LinearLayoutManager(this);
-    layoutManager.setOrientation(LinearLayoutManager.VERTICAL);
+    layoutManager.setOrientation(RecyclerView.VERTICAL);
     this.recyclerView.setLayoutManager(layoutManager);
 
     final ThanksAdapter adapter = new ThanksAdapter(this.viewModel.inputs);
@@ -70,19 +69,33 @@ public final class ThanksActivity extends BaseActivity<ThanksViewModel.ViewModel
       .compose(observeForUI())
       .subscribe(__ -> showConfirmGamesNewsletterDialog());
 
+    this.viewModel.outputs.finish()
+      .compose(bindToLifecycle())
+      .compose(observeForUI())
+      .subscribe(__ -> finish());
+
+    //I'm not sure why we would attempt to show a dialog after a delay but hopefully this helps
     this.viewModel.outputs.showGamesNewsletterDialog()
       .compose(bindToLifecycle())
       .take(1)
       .delay(700L, TimeUnit.MILLISECONDS)
       .compose(observeForUI())
-      .subscribe(__ -> showGamesNewsletterDialog());
+      .subscribe(__ -> {
+        if (!isFinishing()) {
+          showGamesNewsletterDialog();
+        }
+      });
 
     this.viewModel.outputs.showRatingDialog()
       .compose(bindToLifecycle())
       .take(1)
       .delay(700L, TimeUnit.MILLISECONDS)
       .compose(observeForUI())
-      .subscribe(__ -> showRatingDialog());
+      .subscribe(__ -> {
+        if (!isFinishing()) {
+          showRatingDialog();
+        }
+      });
 
     this.viewModel.outputs.startDiscoveryActivity()
       .compose(bindToLifecycle())
@@ -103,7 +116,7 @@ public final class ThanksActivity extends BaseActivity<ThanksViewModel.ViewModel
 
   @OnClick(R.id.close_button)
   protected void closeButtonClick() {
-    ApplicationUtils.resumeDiscoveryActivity(this);
+    this.viewModel.inputs.closeButtonClicked();
   }
 
   private void showConfirmGamesNewsletterDialog() {

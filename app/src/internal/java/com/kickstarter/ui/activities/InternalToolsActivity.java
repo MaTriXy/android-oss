@@ -1,42 +1,49 @@
 package com.kickstarter.ui.activities;
 
 import android.annotation.SuppressLint;
+import android.content.BroadcastReceiver;
+import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.graphics.drawable.Drawable;
 import android.os.Bundle;
-import android.support.annotation.NonNull;
-import android.support.annotation.Nullable;
-import android.support.v7.app.AlertDialog;
-import android.text.TextUtils;
 import android.util.Pair;
 import android.view.View;
 import android.webkit.URLUtil;
+import android.widget.Button;
 import android.widget.EditText;
 import android.widget.TextView;
 
+import com.google.firebase.iid.FirebaseInstanceId;
 import com.jakewharton.processphoenix.ProcessPhoenix;
 import com.kickstarter.KSApplication;
 import com.kickstarter.R;
 import com.kickstarter.libs.ApiEndpoint;
 import com.kickstarter.libs.BaseActivity;
 import com.kickstarter.libs.Build;
-import com.kickstarter.libs.CurrentUserType;
 import com.kickstarter.libs.Logout;
 import com.kickstarter.libs.preferences.StringPreferenceType;
 import com.kickstarter.libs.qualifiers.ApiEndpointPreference;
 import com.kickstarter.libs.qualifiers.RequiresActivityViewModel;
 import com.kickstarter.libs.utils.Secrets;
-import com.kickstarter.models.User;
-import com.kickstarter.ui.viewmodels.InternalToolsViewModel;
+import com.kickstarter.libs.utils.ViewUtils;
+import com.kickstarter.libs.utils.WorkUtils;
+import com.kickstarter.services.firebase.ResetDeviceIdWorker;
+import com.kickstarter.viewmodels.InternalToolsViewModel;
 
 import org.joda.time.format.DateTimeFormat;
 
-import java.util.Arrays;
-import java.util.List;
-import java.util.Locale;
+import java.util.concurrent.TimeUnit;
 
 import javax.inject.Inject;
 
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.appcompat.app.AlertDialog;
+import androidx.work.BackoffPolicy;
+import androidx.work.ExistingWorkPolicy;
+import androidx.work.OneTimeWorkRequest;
+import androidx.work.WorkManager;
 import butterknife.Bind;
 import butterknife.BindDrawable;
 import butterknife.ButterKnife;
@@ -46,14 +53,24 @@ import static com.kickstarter.libs.utils.TransitionUtils.slideInFromLeft;
 
 @RequiresActivityViewModel(InternalToolsViewModel.class)
 public final class InternalToolsActivity extends BaseActivity<InternalToolsViewModel> {
-  private CurrentUserType currentUser;
 
   @Inject @ApiEndpointPreference StringPreferenceType apiEndpointPreference;
   @Inject Build build;
   @Inject Logout logout;
+  private final BroadcastReceiver resetDeviceIdReceiver = new BroadcastReceiver() {
+    @Override
+    public void onReceive(final Context context, final Intent intent) {
+      showDeviceId(true);
+      setupBuildInformationSection();
+    }
+  };
 
+  @Bind(R.id.api_endpoint) TextView apiEndpoint;
   @Bind(R.id.build_date) TextView buildDate;
-  @Bind(R.id.sha) TextView sha;
+  @Bind(R.id.commit_sha) TextView commitSha;
+  @Bind(R.id.device_id) TextView deviceID;
+  @Bind(R.id.device_id_loading_indicator) View deviceIdLoadingIndicator;
+  @Bind(R.id.reset_device_id) Button resetDeviceId;
   @Bind(R.id.variant) TextView variant;
   @Bind(R.id.version_code) TextView versionCode;
   @Bind(R.id.version_name) TextView versionName;
@@ -67,9 +84,21 @@ public final class InternalToolsActivity extends BaseActivity<InternalToolsViewM
 
     ((KSApplication) getApplicationContext()).component().inject(this);
 
-    this.currentUser = environment().currentUser();
-
     setupBuildInformationSection();
+  }
+
+  @Override
+  protected void onResume() {
+    super.onResume();
+
+    this.registerReceiver(this.resetDeviceIdReceiver, new IntentFilter(ResetDeviceIdWorker.BROADCAST));
+  }
+
+  @Override
+  protected void onPause() {
+    super.onPause();
+
+    this.unregisterReceiver(this.resetDeviceIdReceiver);
   }
 
   @OnClick(R.id.playground_button)
@@ -108,38 +137,28 @@ public final class InternalToolsActivity extends BaseActivity<InternalToolsViewM
     setEndpointAndRelaunch(ApiEndpoint.PRODUCTION);
   }
 
-  @OnClick(R.id.submit_bug_report_button)
-  public void submitBugReportButtonClick() {
-    this.currentUser.observable().take(1).subscribe(this::submitBugReport);
+  @OnClick(R.id.crash_button)
+  public void crashButtonClicked() {
+    throw new RuntimeException("Forced a crash!");
   }
 
-  private void submitBugReport(final @Nullable User user) {
-    final String email = Secrets.FIELD_REPORT_EMAIL;
+  @OnClick(R.id.feature_flags_button)
+  public void featureFlagsClick() {
+    final Intent featureFlagIntent = new Intent(this, FeatureFlagsActivity.class);
+    startActivity(featureFlagIntent);
+  }
 
-    final List<String> debugInfo = Arrays.asList(
-      user != null ? user.name() : "Logged Out",
-      this.build.variant(),
-      this.build.versionName(),
-      this.build.versionCode().toString(),
-      this.build.sha(),
-      Integer.toString(android.os.Build.VERSION.SDK_INT),
-      android.os.Build.MANUFACTURER + " " + android.os.Build.MODEL,
-      Locale.getDefault().getLanguage()
-    );
+  @OnClick(R.id.reset_device_id)
+  public void resetDeviceIdClick() {
+    showDeviceId(false);
 
-    final String body = new StringBuilder()
-      .append(TextUtils.join(" | ", debugInfo))
-      .append("\r\n\r\nDescribe the bug and add a subject. Attach images if it helps!\r\n")
-      .append("—————————————\r\n")
-      .toString();
+    final OneTimeWorkRequest request = new OneTimeWorkRequest.Builder(ResetDeviceIdWorker.class)
+      .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 5, TimeUnit.SECONDS)
+      .setConstraints(WorkUtils.INSTANCE.getBaseConstraints())
+      .build();
 
-    final Intent intent = new Intent(android.content.Intent.ACTION_SEND)
-      .addFlags(Intent.FLAG_ACTIVITY_CLEAR_WHEN_TASK_RESET)
-      .setType("message/rfc822")
-      .putExtra(Intent.EXTRA_TEXT, body)
-      .putExtra(Intent.EXTRA_EMAIL, new String[]{email});
-
-    startActivity(Intent.createChooser(intent, getString(R.string.Select_email_application)));
+    WorkManager.getInstance(this)
+      .enqueueUniqueWork(ResetDeviceIdWorker.TAG, ExistingWorkPolicy.REPLACE, request);
   }
 
   private void showCustomEndpointDialog() {
@@ -160,6 +179,12 @@ public final class InternalToolsActivity extends BaseActivity<InternalToolsViewM
       })
       .setIcon(this.icDialogAlertDrawable)
       .show();
+  }
+
+  private void showDeviceId(final boolean show) {
+    this.resetDeviceId.setEnabled(!show);
+    ViewUtils.setInvisible(this.deviceID, !show);
+    ViewUtils.setInvisible(this.deviceIdLoadingIndicator, show);
   }
 
   private void showHivequeenEndpointDialog() {
@@ -184,8 +209,10 @@ public final class InternalToolsActivity extends BaseActivity<InternalToolsViewM
 
   @SuppressLint("SetTextI18n")
   private void setupBuildInformationSection() {
-    this.buildDate.setText(this.build.dateTime().toString(DateTimeFormat.forPattern("yyyy-MM-dd hh:mm:ss aa zzz")));
-    this.sha.setText(this.build.sha());
+    this.apiEndpoint.setText(this.apiEndpointPreference.get());
+    this.buildDate.setText(this.build.buildDate().toString(DateTimeFormat.forPattern("MMM dd, yyyy h:mm:ss aa zzz")));
+    this.commitSha.setText(this.build.sha());
+    this.deviceID.setText(FirebaseInstanceId.getInstance().getId());
     this.variant.setText(this.build.variant());
     this.versionCode.setText(this.build.versionCode().toString());
     this.versionName.setText(this.build.versionName());
@@ -194,10 +221,15 @@ public final class InternalToolsActivity extends BaseActivity<InternalToolsViewM
   private void setEndpointAndRelaunch(final @NonNull ApiEndpoint apiEndpoint) {
     this.apiEndpointPreference.set(apiEndpoint.url());
     this.logout.execute();
+    try {
+      Thread.sleep(500L);
+    } catch (InterruptedException ignored) {
+
+    }
     ProcessPhoenix.triggerRebirth(this);
   }
 
-  protected @Nullable Pair<Integer, Integer> exitTransition() {
+  protected @NonNull Pair<Integer, Integer> exitTransition() {
     return slideInFromLeft();
   }
 }

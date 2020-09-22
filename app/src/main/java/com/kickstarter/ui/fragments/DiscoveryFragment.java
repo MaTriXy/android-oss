@@ -1,21 +1,24 @@
 package com.kickstarter.ui.fragments;
 
+import android.animation.AnimatorSet;
+import android.app.ActivityOptions;
 import android.content.Intent;
 import android.os.Bundle;
-import android.support.annotation.NonNull;
-import android.support.annotation.Nullable;
-import android.support.v7.widget.LinearLayoutManager;
-import android.support.v7.widget.RecyclerView;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.ImageView;
 
+import com.jakewharton.rxbinding.view.RxView;
 import com.kickstarter.R;
 import com.kickstarter.libs.ActivityRequestCodes;
 import com.kickstarter.libs.BaseFragment;
 import com.kickstarter.libs.RecyclerViewPaginator;
 import com.kickstarter.libs.RefTag;
+import com.kickstarter.libs.SwipeRefresher;
 import com.kickstarter.libs.qualifiers.RequiresFragmentViewModel;
+import com.kickstarter.libs.utils.AnimationUtils;
+import com.kickstarter.libs.utils.ViewUtils;
 import com.kickstarter.models.Activity;
 import com.kickstarter.models.Category;
 import com.kickstarter.models.Project;
@@ -23,23 +26,43 @@ import com.kickstarter.services.DiscoveryParams;
 import com.kickstarter.ui.ArgumentsKey;
 import com.kickstarter.ui.IntentKey;
 import com.kickstarter.ui.activities.ActivityFeedActivity;
+import com.kickstarter.ui.activities.EditorialActivity;
 import com.kickstarter.ui.activities.LoginToutActivity;
 import com.kickstarter.ui.activities.ProjectActivity;
 import com.kickstarter.ui.activities.UpdateActivity;
 import com.kickstarter.ui.adapters.DiscoveryAdapter;
+import com.kickstarter.ui.data.Editorial;
 import com.kickstarter.ui.data.LoginReason;
+import com.kickstarter.ui.viewholders.EditorialViewHolder;
 import com.kickstarter.viewmodels.DiscoveryFragmentViewModel;
 
 import java.util.List;
 
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.fragment.app.FragmentActivity;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
+import butterknife.Bind;
+import butterknife.ButterKnife;
+
 import static com.kickstarter.libs.rx.transformers.Transformers.observeForUI;
+import static com.kickstarter.libs.utils.TransitionUtils.fadeIn;
 import static com.kickstarter.libs.utils.TransitionUtils.slideInFromRight;
 import static com.kickstarter.libs.utils.TransitionUtils.transition;
 
-@RequiresFragmentViewModel(DiscoveryFragmentViewModel.class)
-public final class DiscoveryFragment extends BaseFragment<DiscoveryFragmentViewModel> {
-  private RecyclerView recyclerView;
+@RequiresFragmentViewModel(DiscoveryFragmentViewModel.ViewModel.class)
+public final class DiscoveryFragment extends BaseFragment<DiscoveryFragmentViewModel.ViewModel> {
+  private AnimatorSet heartsAnimation;
   private RecyclerViewPaginator recyclerViewPaginator;
+
+  protected @Bind(R.id.discovery_empty_heart_filled) ImageView heartFilled;
+  protected @Bind(R.id.discovery_empty_heart_outline) ImageView heartOutline;
+  protected @Bind(R.id.discovery_empty_view) View emptyView;
+  protected @Bind(R.id.discovery_hearts_container) View heartsContainer;
+  protected @Bind(R.id.discovery_recycler_view) RecyclerView recyclerView;
+  protected @Bind(R.id.discovery_swipe_refresh_layout) SwipeRefreshLayout swipeRefreshLayout;
 
   public DiscoveryFragment() {}
 
@@ -55,23 +78,43 @@ public final class DiscoveryFragment extends BaseFragment<DiscoveryFragmentViewM
   public @Nullable View onCreateView(final @NonNull LayoutInflater inflater, final @Nullable ViewGroup container,
     final @Nullable Bundle savedInstanceState) {
     super.onCreateView(inflater, container, savedInstanceState);
+    final View view = inflater.inflate(R.layout.fragment_discovery, container, false);
+    ButterKnife.bind(this, view);
 
-    this.recyclerView = (RecyclerView) inflater.inflate(R.layout.discovery_recycler_view, container, false);
     final DiscoveryAdapter adapter = new DiscoveryAdapter(this.viewModel.inputs);
     this.recyclerView.setAdapter(adapter);
     final LinearLayoutManager layoutManager = new LinearLayoutManager(this.recyclerView.getContext());
     this.recyclerView.setLayoutManager(layoutManager);
-    this.recyclerViewPaginator = new RecyclerViewPaginator(this.recyclerView, this.viewModel.inputs::nextPage);
+    new SwipeRefresher(
+      this, this.swipeRefreshLayout, this.viewModel.inputs::refresh, this.viewModel.outputs::isFetchingProjects
+    );
+    this.recyclerViewPaginator = new RecyclerViewPaginator(this.recyclerView, this.viewModel.inputs::nextPage, this.viewModel.outputs.isFetchingProjects());
 
     this.viewModel.outputs.activity()
       .compose(bindToLifecycle())
       .compose(observeForUI())
       .subscribe(adapter::takeActivity);
 
+    this.viewModel.outputs.startHeartAnimation()
+      .compose(bindToLifecycle())
+      .compose(observeForUI())
+      .filter(__ -> !lazyHeartCrossFadeAnimation().isRunning())
+      .subscribe(__ -> lazyHeartCrossFadeAnimation().start());
+
     this.viewModel.outputs.projectList()
       .compose(bindToLifecycle())
       .compose(observeForUI())
       .subscribe(adapter::takeProjects);
+
+    this.viewModel.outputs.shouldShowEditorial()
+      .compose(bindToLifecycle())
+      .compose(observeForUI())
+      .subscribe(adapter::setShouldShowEditorial);
+
+    this.viewModel.outputs.shouldShowEmptySavedView()
+      .compose(bindToLifecycle())
+      .compose(observeForUI())
+      .subscribe(show -> ViewUtils.setGone(this.emptyView, !show));
 
     this.viewModel.outputs.shouldShowOnboardingView()
       .compose(bindToLifecycle())
@@ -82,6 +125,11 @@ public final class DiscoveryFragment extends BaseFragment<DiscoveryFragmentViewM
       .compose(bindToLifecycle())
       .compose(observeForUI())
       .subscribe(__ -> startActivityFeedActivity());
+
+    this.viewModel.outputs.startEditorialActivity()
+      .compose(bindToLifecycle())
+      .compose(observeForUI())
+      .subscribe(this::startEditorialActivity);
 
     this.viewModel.outputs.startUpdateActivity()
       .compose(bindToLifecycle())
@@ -98,7 +146,17 @@ public final class DiscoveryFragment extends BaseFragment<DiscoveryFragmentViewM
       .compose(observeForUI())
       .subscribe(__ -> this.startLoginToutActivity());
 
-    return this.recyclerView;
+    RxView.clicks(this.heartsContainer)
+      .compose(bindToLifecycle())
+      .subscribe(__ -> this.viewModel.inputs.heartContainerClicked());
+
+    return view;
+  }
+
+  @Override
+  public void onPause() {
+    super.onPause();
+    this.heartsAnimation = null;
   }
 
   @Override
@@ -122,15 +180,52 @@ public final class DiscoveryFragment extends BaseFragment<DiscoveryFragmentViewM
     return this.recyclerView != null;
   }
 
+  private ImageView getEditorialImageView() {
+    final LinearLayoutManager layoutManager = (LinearLayoutManager) this.recyclerView.getLayoutManager();
+    final DiscoveryAdapter discoveryAdapter = (DiscoveryAdapter) this.recyclerView.getAdapter();
+
+    if (layoutManager != null && discoveryAdapter != null) {
+      for (int i = layoutManager.findFirstVisibleItemPosition(); i <= layoutManager.findLastVisibleItemPosition(); i++) {
+        final View childView = layoutManager.getChildAt(i);
+        if (childView != null) {
+          final RecyclerView.ViewHolder viewHolder = this.recyclerView.getChildViewHolder(childView);
+          if (viewHolder instanceof EditorialViewHolder) {
+            return childView.findViewById(R.id.editorial_graphic);
+          }
+        }
+      }
+    }
+    return null;
+  }
+
+  private @NonNull AnimatorSet lazyHeartCrossFadeAnimation() {
+    if (this.heartsAnimation == null) {
+      this.heartsAnimation = AnimationUtils.INSTANCE.crossFadeAndReverse(this.heartOutline, this.heartFilled, 400L);
+    }
+    return this.heartsAnimation;
+  }
+
   private void startActivityFeedActivity() {
     startActivity(new Intent(getActivity(), ActivityFeedActivity.class));
+  }
+
+  private void startEditorialActivity(final @NonNull Editorial editorial) {
+    final FragmentActivity activity = getActivity();
+    //The transition view must be an ImageView
+    final ImageView editorialImageView = getEditorialImageView();
+    if (activity != null && editorialImageView != null) {
+      final Intent intent = new Intent(activity, EditorialActivity.class)
+        .putExtra(IntentKey.EDITORIAL, editorial);
+      final ActivityOptions options = ActivityOptions.makeSceneTransitionAnimation(activity, editorialImageView, "editorial");
+      startActivity(intent, options.toBundle());
+    }
   }
 
   private void startLoginToutActivity() {
     final Intent intent = new Intent(getActivity(), LoginToutActivity.class)
       .putExtra(IntentKey.LOGIN_REASON, LoginReason.DEFAULT);
     startActivityForResult(intent, ActivityRequestCodes.LOGIN_FLOW);
-    transition(getActivity(), slideInFromRight());
+    transition(getActivity(), fadeIn());
   }
 
   private void startProjectActivity(final @NonNull Project project, final @NonNull RefTag refTag) {
@@ -149,6 +244,10 @@ public final class DiscoveryFragment extends BaseFragment<DiscoveryFragmentViewM
     transition(getActivity(), slideInFromRight());
   }
 
+  public void refresh() {
+    this.viewModel.inputs.refresh();
+  }
+
   public void takeCategories(final @NonNull List<Category> categories) {
     this.viewModel.inputs.rootCategories(categories);
   }
@@ -159,5 +258,9 @@ public final class DiscoveryFragment extends BaseFragment<DiscoveryFragmentViewM
 
   public void clearPage() {
     this.viewModel.inputs.clearPage();
+  }
+
+  public void scrollToTop() {
+    this.recyclerView.smoothScrollToPosition(0);
   }
 }

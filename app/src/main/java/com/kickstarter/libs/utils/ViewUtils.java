@@ -5,9 +5,15 @@ import android.content.ActivityNotFoundException;
 import android.content.Context;
 import android.content.Intent;
 import android.content.res.Configuration;
+import android.graphics.Bitmap;
+import android.graphics.Canvas;
+import android.graphics.Typeface;
 import android.net.Uri;
-import android.support.annotation.NonNull;
-import android.support.annotation.Nullable;
+import android.text.Html;
+import android.text.Spannable;
+import android.text.SpannableString;
+import android.text.Spanned;
+import android.text.style.StyleSpan;
 import android.view.Gravity;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -17,7 +23,11 @@ import android.widget.RelativeLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+
 import com.kickstarter.R;
+import com.kickstarter.libs.ApiCapabilities;
 import com.kickstarter.ui.views.AppRatingDialog;
 import com.kickstarter.ui.views.ConfirmDialog;
 
@@ -25,6 +35,21 @@ import rx.functions.Action1;
 
 public final class ViewUtils {
   private ViewUtils() {}
+
+  public static void addBoldSpan(final @NonNull SpannableString spannableString, final @NonNull String substring) {
+    if (spannableString.toString().contains(substring)) {
+      final int index = spannableString.toString().indexOf(substring);
+      final StyleSpan boldSpan = new StyleSpan(Typeface.BOLD);
+      spannableString.setSpan(boldSpan, index, index + substring.length(), Spannable.SPAN_INCLUSIVE_INCLUSIVE);
+    }
+  }
+
+  public static Bitmap getBitmap(final @NonNull View view, final int width, final int height) {
+    final Bitmap bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
+    final Canvas canvas = new Canvas(bitmap);
+    view.draw(canvas);
+    return bitmap;
+  }
 
   public static float getScreenDensity(final @NonNull Context context) {
     return context.getResources().getDisplayMetrics().density;
@@ -36,6 +61,19 @@ public final class ViewUtils {
 
   public static int getScreenWidthDp(final @NonNull Context context) {
     return context.getResources().getConfiguration().screenWidthDp;
+  }
+
+  /**
+   * Returns a Spanned representation of the passed in HTML string using the
+   * proper API method.
+   *
+   */
+  public static Spanned html(final @NonNull String htmlString) {
+    if (ApiCapabilities.needsLegacyHtml()) {
+      return Html.fromHtml(htmlString);
+    } else {
+      return Html.fromHtml(htmlString, Html.FROM_HTML_MODE_COMPACT);
+    }
   }
 
   public static boolean isFontScaleLarge(final @NonNull Context context) {
@@ -155,7 +193,7 @@ public final class ViewUtils {
   }
 
   /**
-   * Sets the visiblity of a view to {@link View#VISIBLE} or {@link View#INVISIBLE}. Setting
+   * Sets the visibility of a view to {@link View#VISIBLE} or {@link View#INVISIBLE}. Setting
    * the view to INVISIBLE makes it hidden, but it still takes up space.
    */
   public static void setInvisible(final @NonNull View view, final boolean hidden) {

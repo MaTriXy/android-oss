@@ -3,9 +3,6 @@ package com.kickstarter.ui.activities;
 import android.app.Activity;
 import android.content.Intent;
 import android.os.Bundle;
-import android.support.annotation.NonNull;
-import android.support.annotation.Nullable;
-import android.support.v7.widget.SwitchCompat;
 import android.util.Pair;
 import android.widget.TextView;
 
@@ -17,9 +14,11 @@ import com.kickstarter.libs.qualifiers.RequiresActivityViewModel;
 import com.kickstarter.libs.utils.SwitchCompatUtils;
 import com.kickstarter.libs.utils.ViewUtils;
 import com.kickstarter.ui.toolbars.LoginToolbar;
-import com.kickstarter.ui.views.LoginPopupMenu;
 import com.kickstarter.viewmodels.FacebookConfirmationViewModel;
 
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.appcompat.widget.SwitchCompat;
 import butterknife.Bind;
 import butterknife.BindString;
 import butterknife.ButterKnife;
@@ -76,11 +75,6 @@ public class FacebookConfirmationActivity extends BaseActivity<FacebookConfirmat
   @OnClick(R.id.create_new_account_button)
   public void createNewAccountClick() {
     this.viewModel.inputs.createNewAccountClick();
-  }
-
-  @OnClick(R.id.disclaimer)
-  public void disclaimerClick() {
-    new LoginPopupMenu(this, this.helpButton).show();
   }
 
   @OnClick(R.id.login_button)

@@ -1,14 +1,13 @@
 package com.kickstarter.libs.utils;
 
-import android.support.annotation.NonNull;
-import android.support.annotation.Nullable;
-
 import com.kickstarter.models.Category;
 import com.kickstarter.models.Project;
 import com.kickstarter.services.DiscoveryParams;
 
 import java.util.List;
 
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import rx.Observable;
 
 public final class DiscoveryUtils {
@@ -22,7 +21,7 @@ public final class DiscoveryUtils {
       return 0;
     }
     switch (sort) {
-      case HOME:
+      case MAGIC:
         return 0;
       case POPULAR:
         return 1;
@@ -30,8 +29,6 @@ public final class DiscoveryUtils {
         return 2;
       case ENDING_SOON:
         return 3;
-      case MOST_FUNDED:
-        return 4;
       default:
         return 0;
     }
@@ -41,7 +38,7 @@ public final class DiscoveryUtils {
    * Return the corresponding sort for a given tab position.
    */
   public static @NonNull DiscoveryParams.Sort sortFromPosition(final int position) {
-    return DiscoveryParams.Sort.values()[position];
+    return DiscoveryParams.Sort.defaultSorts[position];
   }
 
   /**

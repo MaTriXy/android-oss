@@ -1,6 +1,5 @@
 package com.kickstarter.viewmodels;
 
-import android.support.annotation.NonNull;
 import android.util.Pair;
 
 import com.facebook.CallbackManager;
@@ -13,6 +12,7 @@ import com.kickstarter.libs.ActivityRequestCodes;
 import com.kickstarter.libs.ActivityViewModel;
 import com.kickstarter.libs.CurrentUserType;
 import com.kickstarter.libs.Environment;
+import com.kickstarter.libs.utils.ObjectUtils;
 import com.kickstarter.services.ApiClientType;
 import com.kickstarter.services.apiresponses.AccessTokenEnvelope;
 import com.kickstarter.services.apiresponses.ErrorEnvelope;
@@ -23,19 +23,24 @@ import com.kickstarter.ui.data.LoginReason;
 
 import java.util.List;
 
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.annotation.VisibleForTesting;
+import rx.Notification;
 import rx.Observable;
 import rx.subjects.BehaviorSubject;
 import rx.subjects.PublishSubject;
 
 import static com.kickstarter.libs.rx.transformers.Transformers.combineLatestPair;
-import static com.kickstarter.libs.rx.transformers.Transformers.neverError;
-import static com.kickstarter.libs.rx.transformers.Transformers.pipeApiErrorsTo;
+import static com.kickstarter.libs.rx.transformers.Transformers.errors;
+import static com.kickstarter.libs.rx.transformers.Transformers.ignoreValues;
+import static com.kickstarter.libs.rx.transformers.Transformers.values;
 
 public interface LoginToutViewModel {
 
   interface Inputs {
     /** Call when the Login to Facebook button is clicked. */
-    void facebookLoginClick(final @NonNull LoginToutActivity activity, final @NonNull List<String> facebookPermissions);
+    void facebookLoginClick(final @Nullable LoginToutActivity activity, final @NonNull List<String> facebookPermissions);
 
     /** Call when the login button is clicked. */
     void loginClick();
@@ -86,7 +91,7 @@ public interface LoginToutViewModel {
 
       registerFacebookCallback();
 
-      final Observable<AccessTokenEnvelope> facebookSuccessTokenEnvelope = this.facebookAccessToken
+      final Observable<Notification<AccessTokenEnvelope>> facebookAccessTokenEnvelope = this.facebookAccessToken
         .switchMap(this::loginWithFacebookAccessToken)
         .share();
 
@@ -110,12 +115,20 @@ public interface LoginToutViewModel {
         .compose(bindToLifecycle())
         .subscribe(this::clearFacebookSession);
 
-      facebookSuccessTokenEnvelope
+      facebookAccessTokenEnvelope
+        .compose(values())
         .compose(bindToLifecycle())
         .subscribe(envelope -> {
           this.currentUser.login(envelope.user(), envelope.accessToken());
           this.finishWithSuccessfulResult.onNext(null);
         });
+
+      facebookAccessTokenEnvelope
+        .compose(errors())
+        .map(ErrorEnvelope::fromThrowable)
+        .filter(ObjectUtils::isNotNull)
+        .compose(bindToLifecycle())
+        .subscribe(this.loginError::onNext);
 
       this.startFacebookConfirmationActivity = this.loginError
         .filter(ErrorEnvelope::isConfirmFacebookSignupError)
@@ -129,6 +142,11 @@ public interface LoginToutViewModel {
         .compose(bindToLifecycle())
         .subscribe(this.koala::trackLoginRegisterTout);
 
+      this.loginReason
+        .take(1)
+        .compose(bindToLifecycle())
+        .subscribe(__ -> this.lake.trackLogInSignUpPageViewed());
+
       this.loginError
         .compose(bindToLifecycle())
         .subscribe(__ -> this.koala.trackLoginError());
@@ -138,28 +156,37 @@ public interface LoginToutViewModel {
         .mergeWith(showFacebookAuthorizationErrorDialog())
         .compose(bindToLifecycle())
         .subscribe(__ -> this.koala.trackFacebookLoginError());
+
+      this.facebookLoginClick
+        .compose(ignoreValues())
+        .compose(bindToLifecycle())
+        .subscribe(__ -> this.lake.trackFacebookLogInSignUpButtonClicked());
+
+      this.loginClick
+        .compose(bindToLifecycle())
+        .subscribe(__ -> this.lake.trackLogInButtonClicked());
+
+      this.signupClick
+        .compose(bindToLifecycle())
+        .subscribe(__ -> this.lake.trackSignUpButtonClicked());
     }
 
     private void clearFacebookSession(final @NonNull FacebookException e) {
       LoginManager.getInstance().logOut();
     }
 
-    private @NonNull Observable<AccessTokenEnvelope> loginWithFacebookAccessToken(final @NonNull String fbAccessToken) {
+    private @NonNull Observable<Notification<AccessTokenEnvelope>> loginWithFacebookAccessToken(final @NonNull String fbAccessToken) {
       return this.client.loginWithFacebook(fbAccessToken)
-        .compose(pipeApiErrorsTo(this.loginError))
-        .compose(neverError());
+        .materialize();
     }
 
     private void registerFacebookCallback() {
-      final PublishSubject<String> fbAccessToken = this.facebookAccessToken;
-      final BehaviorSubject<FacebookException> fbAuthError = this.facebookAuthorizationError;
-
       this.callbackManager = CallbackManager.Factory.create();
 
       LoginManager.getInstance().registerCallback(this.callbackManager, new FacebookCallback<LoginResult>() {
         @Override
         public void onSuccess(final @NonNull LoginResult result) {
-          fbAccessToken.onNext(result.getAccessToken().getToken());
+          ViewModel.this.facebookAccessToken.onNext(result.getAccessToken().getToken());
         }
 
         @Override
@@ -170,15 +197,18 @@ public interface LoginToutViewModel {
         @Override
         public void onError(final @NonNull FacebookException error) {
           if (error instanceof FacebookAuthorizationException) {
-            fbAuthError.onNext(error);
+            ViewModel.this.facebookAuthorizationError.onNext(error);
           }
         }
       });
     }
 
-    private final PublishSubject<String> facebookAccessToken = PublishSubject.create();
+    @VisibleForTesting
+    final PublishSubject<String> facebookAccessToken = PublishSubject.create();
+    final PublishSubject<List<String>> facebookLoginClick = PublishSubject.create();
     private final PublishSubject<Void> loginClick = PublishSubject.create();
-    private final PublishSubject<ErrorEnvelope> loginError = PublishSubject.create();
+    @VisibleForTesting
+    final PublishSubject<ErrorEnvelope> loginError = PublishSubject.create();
     private final PublishSubject<LoginReason> loginReason = PublishSubject.create();
     private final PublishSubject<Void> signupClick = PublishSubject.create();
 
@@ -191,8 +221,11 @@ public interface LoginToutViewModel {
     public final Inputs inputs = this;
     public final Outputs outputs = this;
 
-    @Override public void facebookLoginClick(final @NonNull LoginToutActivity activity, final @NonNull List<String> facebookPermissions) {
-      LoginManager.getInstance().logInWithReadPermissions(activity, facebookPermissions);
+    @Override public void facebookLoginClick(final @Nullable LoginToutActivity activity, final @NonNull List<String> facebookPermissions) {
+      this.facebookLoginClick.onNext(facebookPermissions);
+      if (activity != null) {
+        LoginManager.getInstance().logInWithReadPermissions(activity, facebookPermissions);
+      }
     }
     @Override public void loginClick() {
       this.loginClick.onNext(null);

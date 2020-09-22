@@ -1,6 +1,5 @@
 package com.kickstarter.viewmodels;
 
-import android.support.annotation.NonNull;
 import android.util.Pair;
 
 import com.kickstarter.libs.ActivityViewModel;
@@ -9,6 +8,7 @@ import com.kickstarter.models.SurveyResponse;
 import com.kickstarter.ui.IntentKey;
 import com.kickstarter.ui.activities.SurveyResponseActivity;
 
+import androidx.annotation.NonNull;
 import okhttp3.Request;
 import rx.Observable;
 import rx.subjects.BehaviorSubject;
@@ -76,8 +76,8 @@ public interface SurveyResponseViewModel {
      * which indicates a redirect from a successful submit.
      */
     private boolean requestTagUrlIsSurveyUrl(final @NonNull Pair<Request, String> projectRequestAndSurveyUrl) {
-      return ((Request) projectRequestAndSurveyUrl.first.tag()).url().toString()
-        .equals(projectRequestAndSurveyUrl.second);
+      final Request tag = (Request) projectRequestAndSurveyUrl.first.tag();
+      return tag == null || tag.url().toString().equals(projectRequestAndSurveyUrl.second);
     }
 
     private final PublishSubject<Void> okButtonClicked = PublishSubject.create();

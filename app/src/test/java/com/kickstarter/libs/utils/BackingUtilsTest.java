@@ -1,9 +1,10 @@
 package com.kickstarter.libs.utils;
 
 import com.kickstarter.KSRobolectricTestCase;
-import com.kickstarter.factories.BackingFactory;
-import com.kickstarter.factories.ProjectFactory;
-import com.kickstarter.factories.RewardFactory;
+import com.kickstarter.mock.factories.BackingFactory;
+import com.kickstarter.mock.factories.ProjectFactory;
+import com.kickstarter.mock.factories.RewardFactory;
+import com.kickstarter.mock.factories.UserFactory;
 import com.kickstarter.models.Backing;
 import com.kickstarter.models.Project;
 
@@ -16,6 +17,21 @@ public final class BackingUtilsTest extends KSRobolectricTestCase {
     final Project backedProject = ProjectFactory.backedProject();
     assertTrue(BackingUtils.isBacked(backedProject, backedProject.backing().reward()));
     assertFalse(BackingUtils.isBacked(backedProject, RewardFactory.reward()));
+    assertFalse(BackingUtils.isBacked(backedProject, RewardFactory.noReward()));
+    final Project noRewardBackedProject = ProjectFactory.backedProject().toBuilder()
+      .backing(BackingFactory.backing(backedProject, UserFactory.user(), RewardFactory.noReward()))
+      .build();
+    assertTrue(BackingUtils.isBacked(noRewardBackedProject, RewardFactory.noReward()));
+  }
+
+  @Test
+  public void testIsErrored() {
+    assertFalse(BackingUtils.isErrored(BackingFactory.backing(Backing.STATUS_CANCELED)));
+    assertFalse(BackingUtils.isErrored(BackingFactory.backing(Backing.STATUS_COLLECTED)));
+    assertFalse(BackingUtils.isErrored(BackingFactory.backing(Backing.STATUS_DROPPED)));
+    assertTrue(BackingUtils.isErrored(BackingFactory.backing(Backing.STATUS_ERRORED)));
+    assertFalse(BackingUtils.isErrored(BackingFactory.backing(Backing.STATUS_PLEDGED)));
+    assertFalse(BackingUtils.isErrored(BackingFactory.backing(Backing.STATUS_PREAUTH)));
   }
 
   @Test

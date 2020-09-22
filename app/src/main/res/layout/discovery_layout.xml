@@ -1,12 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
-<android.support.v4.widget.DrawerLayout
-  xmlns:android="http://schemas.android.com/apk/res/android"
-  xmlns:tools="http://schemas.android.com/tools"
+<androidx.drawerlayout.widget.DrawerLayout xmlns:android="http://schemas.android.com/apk/res/android"
   xmlns:app="http://schemas.android.com/apk/res-auto"
+  xmlns:tools="http://schemas.android.com/tools"
   android:id="@+id/discovery_layout"
-  android:layout_height="match_parent"
   android:layout_width="match_parent"
-  android:fitsSystemWindows="true"
+  android:layout_height="match_parent"
   android:nextFocusDown="@+id/recycler_view"
   tools:context=".ui.activities.DiscoveryActivity">
 
@@ -15,75 +13,70 @@
     android:layout_height="match_parent"
     android:fitsSystemWindows="true">
 
-    <android.support.design.widget.CoordinatorLayout
+    <androidx.coordinatorlayout.widget.CoordinatorLayout
       android:layout_width="match_parent"
-      android:layout_height="match_parent"
-      tools:ignore="UnusedAttribute">
+      android:layout_height="match_parent">
 
-      <android.support.design.widget.AppBarLayout
+      <androidx.viewpager.widget.ViewPager
+        android:id="@+id/discovery_view_pager"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        app:layout_behavior="@string/appbar_scrolling_view_behavior" />
+
+      <com.google.android.material.appbar.AppBarLayout
         android:id="@+id/discovery_sort_app_bar_layout"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        app:elevation="@dimen/card_no_elevation">
+        android:layout_height="wrap_content">
 
-        <android.support.design.widget.CollapsingToolbarLayout
+        <com.google.android.material.appbar.CollapsingToolbarLayout
           android:layout_width="match_parent"
-          android:layout_height="96dp"
-          app:layout_scrollFlags="scroll|exitUntilCollapsed">
+          android:layout_height="wrap_content"
+          app:layout_scrollFlags="scroll|enterAlways">
 
-          <include
-            layout="@layout/discovery_toolbar"
+          <LinearLayout
             android:layout_width="match_parent"
-            android:layout_height="?attr/actionBarSize"
-            android:layout_gravity="top" />
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
 
-          <com.kickstarter.ui.views.SortTabLayout
-            android:id="@+id/discovery_tab_layout"
-            android:layout_width="match_parent"
-            android:layout_height="?attr/actionBarSize"
-            android:layout_gravity="bottom"
-            app:layout_collapseMode="pin"
-            app:tabBackground="@drawable/click_indicator_light"
-            app:tabMode="scrollable"
-            app:tabSelectedTextColor="@color/text_primary"
-            app:tabTextAppearance="@style/TabTextAppearance"
-            app:tabTextColor="@color/black_alpha_30"
-            />
+            <include
+              layout="@layout/discovery_toolbar"
+              android:layout_width="match_parent"
+              android:layout_height="?android:attr/actionBarSize" />
 
-        </android.support.design.widget.CollapsingToolbarLayout>
+            <com.kickstarter.ui.views.SortTabLayout
+              android:id="@+id/discovery_tab_layout"
+              android:layout_width="match_parent"
+              android:layout_height="wrap_content"
+              app:tabMode="scrollable"
+              app:tabSelectedTextColor="@color/primary"
+              app:tabTextColor="@color/ksr_soft_black" />
 
-      </android.support.design.widget.AppBarLayout>
+          </LinearLayout>
 
-      <android.support.v4.view.ViewPager
-        android:id="@+id/discovery_view_pager"
-        app:layout_behavior="@string/appbar_scrolling_view_behavior"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"/>
+        </com.google.android.material.appbar.CollapsingToolbarLayout>
 
-      <include
-        layout="@layout/horizontal_line_1dp_view"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        app:layout_behavior="com.kickstarter.ui.toolbars.AlphaBehavior" />
+      </com.google.android.material.appbar.AppBarLayout>
 
-    </android.support.design.widget.CoordinatorLayout>
+      <include layout="@layout/qualtrics_prompt" />
+
+    </androidx.coordinatorlayout.widget.CoordinatorLayout>
 
   </RelativeLayout>
 
-  <android.support.design.widget.NavigationView
+  <com.google.android.material.navigation.NavigationView
     android:id="@+id/discovery_navigation_view"
+    android:layout_width="304dp"
     android:layout_height="match_parent"
-    android:layout_width="320dp"
     android:layout_gravity="start"
-    android:fitsSystemWindows="true"
-    android:background="@color/white">
+    android:background="@color/white"
+    android:fitsSystemWindows="false">
 
-    <android.support.v7.widget.RecyclerView
+    <androidx.recyclerview.widget.RecyclerView
       android:id="@+id/discovery_drawer_recycler_view"
       android:layout_width="match_parent"
       android:layout_height="match_parent"
       android:scrollbars="vertical" />
 
-  </android.support.design.widget.NavigationView>
+  </com.google.android.material.navigation.NavigationView>
 
-</android.support.v4.widget.DrawerLayout>
+</androidx.drawerlayout.widget.DrawerLayout>

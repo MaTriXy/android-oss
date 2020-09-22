@@ -1,10 +1,9 @@
 package com.kickstarter.libs.rx.transformers;
 
-import android.support.annotation.NonNull;
-
 import com.kickstarter.services.ApiException;
 import com.kickstarter.services.apiresponses.ErrorEnvelope;
 
+import androidx.annotation.NonNull;
 import rx.Observable;
 import rx.functions.Action1;
 import rx.subjects.PublishSubject;
@@ -38,30 +37,6 @@ public final class Transformers {
    */
   public static <T> NeverErrorTransformer<T> neverError() {
     return new NeverErrorTransformer<>();
-  }
-
-  /**
-   * Prevents an observable from erroring by chaining `onErrorResumeNext`,
-   * and any errors that occur will be piped into the supplied errors publish
-   * subject. `null` values will never be sent to the publish subject.
-   *
-   * @deprecated Use {@link Observable#materialize()} instead.
-   */
-  @Deprecated
-  public static <T> NeverErrorTransformer<T> pipeErrorsTo(final @NonNull PublishSubject<Throwable> errorSubject) {
-    return new NeverErrorTransformer<>(errorSubject::onNext);
-  }
-
-  /**
-   * Prevents an observable from erroring by chaining `onErrorResumeNext`,
-   * and any errors that occur will be piped into the supplied errors action.
-   * `null` values will never be sent to the publish subject.
-   *
-   * @deprecated Use {@link Observable#materialize()} instead.
-   */
-  @Deprecated
-  public static <T> NeverErrorTransformer<T> pipeErrorsTo(final @NonNull Action1<Throwable> errorAction) {
-    return new NeverErrorTransformer<>(errorAction);
   }
 
   /**

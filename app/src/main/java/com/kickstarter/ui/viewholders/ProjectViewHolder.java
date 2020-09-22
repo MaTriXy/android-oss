@@ -2,10 +2,9 @@ package com.kickstarter.ui.viewholders;
 
 import android.content.Intent;
 import android.graphics.drawable.Drawable;
-import android.support.annotation.NonNull;
-import android.support.annotation.Nullable;
-import android.support.v4.content.ContextCompat;
 import android.text.Html;
+import android.text.SpannableString;
+import android.text.Spanned;
 import android.text.TextUtils;
 import android.util.Pair;
 import android.view.View;
@@ -28,11 +27,15 @@ import com.kickstarter.models.Photo;
 import com.kickstarter.models.Project;
 import com.kickstarter.ui.IntentKey;
 import com.kickstarter.ui.activities.ProjectSocialActivity;
+import com.kickstarter.ui.data.ProjectData;
 import com.kickstarter.viewmodels.ProjectHolderViewModel;
 import com.squareup.picasso.Picasso;
 
 import org.joda.time.DateTime;
 
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.core.content.ContextCompat;
 import butterknife.Bind;
 import butterknife.BindColor;
 import butterknife.BindDimen;
@@ -55,14 +58,22 @@ public final class ProjectViewHolder extends KSViewHolder {
   private final KSString ksString;
 
   protected @Bind(R.id.avatar) ImageView avatarImageView;
+  protected @Bind(R.id.avatar_variant) ImageView avatarVariantImageView;
   protected @Bind(R.id.backers_count) TextView backersCountTextView;
   protected @Bind(R.id.backing_group) ViewGroup backingViewGroup;
-  protected @Bind(R.id.back_project_button) @Nullable Button backProjectButton;
   protected @Bind(R.id.blurb_view) ViewGroup blurbViewGroup;
+  protected @Bind(R.id.blurb_view_variant) ViewGroup blurbVariantViewGroup;
   protected @Bind(R.id.blurb) TextView blurbTextView;
+  protected @Bind(R.id.blurb_variant) TextView blurbVariantTextView;
   protected @Bind(R.id.category) TextView categoryTextView;
   protected @Bind(R.id.comments_count) TextView commentsCountTextView;
+  protected @Bind(R.id.usd_conversion_text_view) TextView conversionTextView;
+  protected @Bind(R.id.creator_details) TextView creatorDetailsTextView;
+  protected @Bind(R.id.creator_info) ViewGroup creatorInfoContainer;
+  protected @Bind(R.id.creator_info_loading_container) ViewGroup creatorInfoLoadingContainer;
+  protected @Bind(R.id.creator_info_variant) ViewGroup creatorInfoVariantContainer;
   protected @Bind(R.id.creator_name) TextView creatorNameTextView;
+  protected @Bind(R.id.creator_name_variant) TextView creatorNameVariantTextView;
   protected @Bind(R.id.deadline_countdown_text_view) TextView deadlineCountdownTextView;
   protected @Bind(R.id.deadline_countdown_unit_text_view) TextView deadlineCountdownUnitTextView;
   protected @Bind(R.id.featured) TextView featuredTextView;
@@ -71,12 +82,14 @@ public final class ProjectViewHolder extends KSViewHolder {
   protected @Bind(R.id.goal) TextView goalTextView;
   protected @Bind(R.id.land_overlay_text) @Nullable ViewGroup landOverlayTextViewGroup;
   protected @Bind(R.id.location) TextView locationTextView;
-  protected @Bind(R.id.manage_pledge_button) @Nullable Button managePledgeButton;
   protected @Bind(R.id.name_creator_view) @Nullable ViewGroup nameCreatorViewGroup;
   protected @Bind(R.id.percentage_funded) ProgressBar percentageFundedProgressBar;
   protected @Bind(R.id.project_photo) ImageView photoImageView;
   protected @Bind(R.id.play_button_overlay) ImageButton playButton;
   protected @Bind(R.id.pledged) TextView pledgedTextView;
+  protected @Bind(R.id.project_dashboard_button) Button projectDashboardButton;
+  protected @Bind(R.id.project_dashboard_container) ViewGroup projectDashboardContainer;
+  protected @Bind(R.id.project_launch_date) TextView projectLaunchDateTextView;
   protected @Bind(R.id.project_metadata_view_group) ViewGroup projectMetadataViewGroup;
   protected @Bind(R.id.project_name) TextView projectNameTextView;
   protected @Bind(R.id.project_social_image) ImageView projectSocialImageView;
@@ -86,9 +99,8 @@ public final class ProjectViewHolder extends KSViewHolder {
   protected @Bind(R.id.project_state_header_text_view) TextView projectStateHeaderTextView;
   protected @Bind(R.id.project_state_subhead_text_view) TextView projectStateSubheadTextView;
   protected @Bind(R.id.project_state_view_group) ViewGroup projectStateViewGroup;
-  protected @Bind(R.id.view_pledge_button) @Nullable Button viewPledgeButton;
+  protected @Bind(R.id.updates) ViewGroup updatesContainer;
   protected @Bind(R.id.updates_count) TextView updatesCountTextView;
-  protected @Bind(R.id.usd_conversion_text_view) TextView usdConversionTextView;
 
   protected @BindColor(R.color.green_alpha_20) int greenAlpha50Color;
   protected @BindColor(R.color.ksr_grey_400) int ksrGrey400;
@@ -97,10 +109,12 @@ public final class ProjectViewHolder extends KSViewHolder {
   protected @BindDimen(R.dimen.grid_2) int grid2Dimen;
   protected @BindDimen(R.dimen.grid_3) int grid3Dimen;
   protected @BindDimen(R.dimen.grid_4) int grid4Dimen;
+  protected @BindDimen(R.dimen.grid_10) int grid10Dimen;
 
   protected @BindDrawable(R.drawable.click_indicator_light_masked) Drawable clickIndicatorLightMaskedDrawable;
   protected @BindDrawable(R.drawable.gray_gradient) Drawable grayGradientDrawable;
 
+  protected @BindString(R.string.projects_launched_count_created_projects_backed_count_backed) String createdAndBackedProjectsString;
   protected @BindString(R.string.project_creator_by_creator_html) String byCreatorString;
   protected @BindString(R.string.discovery_baseball_card_blurb_read_more) String blurbReadMoreString;
   protected @BindString(R.string.discovery_baseball_card_stats_convert_from_pledged_of_goal) String convertedFromString;
@@ -120,14 +134,14 @@ public final class ProjectViewHolder extends KSViewHolder {
   protected @BindString(R.string.discovery_baseball_card_stats_backers) String backersString;
 
   public interface Delegate {
-    void projectViewHolderBackProjectClicked(ProjectViewHolder viewHolder);
     void projectViewHolderBlurbClicked(ProjectViewHolder viewHolder);
+    void projectViewHolderBlurbVariantClicked(ProjectViewHolder viewHolder);
     void projectViewHolderCommentsClicked(ProjectViewHolder viewHolder);
     void projectViewHolderCreatorClicked(ProjectViewHolder viewHolder);
-    void projectViewHolderManagePledgeClicked(ProjectViewHolder viewHolder);
+    void projectViewHolderCreatorInfoVariantClicked(ProjectViewHolder viewHolder);
+    void projectViewHolderDashboardClicked(ProjectViewHolder viewHolder);
     void projectViewHolderUpdatesClicked(ProjectViewHolder viewHolder);
     void projectViewHolderVideoStarted(ProjectViewHolder viewHolder);
-    void projectViewHolderViewPledgeClicked(ProjectViewHolder viewHolder);
   }
 
   public ProjectViewHolder(final @NonNull View view, final @NonNull Delegate delegate) {
@@ -141,12 +155,7 @@ public final class ProjectViewHolder extends KSViewHolder {
     this.viewModel.outputs.avatarPhotoUrl()
       .compose(bindToLifecycle())
       .compose(observeForUI())
-      .subscribe(url ->
-        Picasso.with(context())
-          .load(url)
-          .transform(new CircleTransformation())
-          .into(this.avatarImageView)
-      );
+      .subscribe(this::setAvatar);
 
     this.viewModel.outputs.backersCountTextViewText()
       .compose(bindToLifecycle())
@@ -161,7 +170,12 @@ public final class ProjectViewHolder extends KSViewHolder {
     this.viewModel.outputs.blurbTextViewText()
       .compose(bindToLifecycle())
       .compose(observeForUI())
-      .subscribe(blurb -> this.blurbTextView.setText(Html.fromHtml(TextUtils.htmlEncode(blurb))));
+      .subscribe(this::setBlurbTextViews);
+
+    this.viewModel.outputs.blurbVariantIsVisible()
+      .compose(bindToLifecycle())
+      .compose(observeForUI())
+      .subscribe(this::setBlurbVariantVisibility);
 
     this.viewModel.outputs.categoryTextViewText()
       .compose(bindToLifecycle())
@@ -173,13 +187,30 @@ public final class ProjectViewHolder extends KSViewHolder {
       .compose(observeForUI())
       .subscribe(this.commentsCountTextView::setText);
 
+    this.viewModel.outputs.creatorBackedAndLaunchedProjectsCount()
+      .compose(bindToLifecycle())
+      .compose(observeForUI())
+      .subscribe(this::setCreatorDetailsTextView);
+
+    this.viewModel.outputs.creatorDetailsLoadingContainerIsVisible()
+      .compose(bindToLifecycle())
+      .compose(observeForUI())
+      .subscribe(visible -> ViewUtils.setGone(this.creatorInfoLoadingContainer, !visible));
+
+    this.viewModel.outputs.creatorDetailsVariantIsVisible()
+      .compose(bindToLifecycle())
+      .compose(observeForUI())
+      .subscribe(this::setCreatorDetailsVariantVisibility);
+
     this.viewModel.outputs.creatorNameTextViewText()
       .compose(bindToLifecycle())
       .compose(observeForUI())
-      .subscribe(name ->
-        this.creatorNameTextView.setText(
-          Html.fromHtml(this.ksString.format(this.byCreatorString, "creator_name", TextUtils.htmlEncode(name))))
-      );
+      .subscribe(this.creatorNameTextView::setText);
+
+    this.viewModel.outputs.creatorNameTextViewText()
+      .compose(bindToLifecycle())
+      .compose(observeForUI())
+      .subscribe(this.creatorNameVariantTextView::setText);
 
     this.viewModel.outputs.deadlineCountdownTextViewText()
       .compose(bindToLifecycle())
@@ -212,8 +243,6 @@ public final class ProjectViewHolder extends KSViewHolder {
       .subscribe(p -> {
         // todo: break down these helpers
         setLandscapeOverlayText(p);
-        setLandscapeActionButton(p);
-        setStatsContentDescription(p);
         this.deadlineCountdownUnitTextView.setText(ProjectUtils.deadlineCountdownDetail(p, context(), this.ksString));
       });
 
@@ -237,6 +266,16 @@ public final class ProjectViewHolder extends KSViewHolder {
       .compose(observeForUI())
       .subscribe(this.pledgedTextView::setText);
 
+    this.viewModel.outputs.projectDashboardButtonText()
+      .compose(bindToLifecycle())
+      .compose(observeForUI())
+      .subscribe(this.projectDashboardButton::setText);
+
+    this.viewModel.outputs.projectDashboardContainerIsGone()
+      .compose(bindToLifecycle())
+      .compose(observeForUI())
+      .subscribe(ViewUtils.setGone(this.projectDashboardContainer));
+
     this.viewModel.outputs.projectDisclaimerGoalNotReachedString()
       .compose(bindToLifecycle())
       .compose(observeForUI())
@@ -251,6 +290,16 @@ public final class ProjectViewHolder extends KSViewHolder {
       .compose(bindToLifecycle())
       .compose(observeForUI())
       .subscribe(ViewUtils.setGone(this.projectDisclaimerTextView));
+
+    this.viewModel.outputs.projectLaunchDate()
+      .compose(bindToLifecycle())
+      .compose(observeForUI())
+      .subscribe(this::setProjectLaunchDateString);
+
+    this.viewModel.outputs.projectLaunchDateIsGone()
+      .compose(bindToLifecycle())
+      .compose(observeForUI())
+      .subscribe(ViewUtils.setGone(this.projectLaunchDateTextView));
 
     this.viewModel.outputs.projectMetadataViewGroupBackgroundDrawableInt()
       .compose(bindToLifecycle())
@@ -276,7 +325,7 @@ public final class ProjectViewHolder extends KSViewHolder {
       .compose(bindToLifecycle())
       .compose(observeForUI())
       .subscribe(friends ->
-         this.projectSocialTextView.setText(SocialUtils.projectCardFriendNamepile(context(), friends, this.ksString))
+        this.projectSocialTextView.setText(SocialUtils.projectCardFriendNamepile(context(), friends, this.ksString))
       );
 
     this.viewModel.outputs.projectSocialImageViewIsGone()
@@ -348,31 +397,54 @@ public final class ProjectViewHolder extends KSViewHolder {
       .compose(observeForUI())
       .subscribe(this.updatesCountTextView::setText);
 
-    this.viewModel.outputs.usdConversionPledgedAndGoalText()
+    this.viewModel.outputs.conversionPledgedAndGoalText()
       .compose(bindToLifecycle())
       .compose(observeForUI())
-      .subscribe(this::setConvertedUsdView);
+      .subscribe(this::setConvertedCurrencyView);
 
-    this.viewModel.outputs.usdConversionTextViewIsGone()
+    this.viewModel.outputs.conversionTextViewIsGone()
       .compose(bindToLifecycle())
       .compose(observeForUI())
-      .subscribe(ViewUtils.setGone(this.usdConversionTextView));
+      .subscribe(ViewUtils.setGone(this.conversionTextView));
   }
 
   @Override
   public void bindData(final @Nullable Object data) throws Exception {
     @SuppressWarnings("unchecked")
-    final Pair<Project, String> projectAndCountry = requireNonNull((Pair<Project, String>) data);
-    this.viewModel.inputs.configureWith(projectAndCountry);
+    final ProjectData projectData = requireNonNull((ProjectData) data);
+    this.viewModel.inputs.configureWith(projectData);
   }
 
-  private void setConvertedUsdView(final @NonNull Pair<String, String> pledgedAndGoal) {
-    this.usdConversionTextView.setText(
+  private void setAvatar(final @NonNull String url) {
+    Picasso.with(context())
+      .load(url)
+      .transform(new CircleTransformation())
+      .into(this.avatarImageView);
+
+    Picasso.with(context())
+      .load(url)
+      .transform(new CircleTransformation())
+      .into(this.avatarVariantImageView);
+  }
+
+  private void setConvertedCurrencyView(final @NonNull Pair<String, String> pledgedAndGoal) {
+    this.conversionTextView.setText(
       this.ksString.format(
         this.convertedFromString, "pledged", pledgedAndGoal.first, "goal", pledgedAndGoal.second
       )
     );
-  };
+  }
+
+  private void setCreatorDetailsTextView(final @NonNull Pair<Integer, Integer> backedAndLaunchedProjectsCount) {
+    this.creatorDetailsTextView.setText(this.ksString.format(this.createdAndBackedProjectsString,
+      "projects_backed_count", NumberUtils.format(backedAndLaunchedProjectsCount.first),
+      "projects_launched_count", NumberUtils.format(backedAndLaunchedProjectsCount.second)));
+  }
+
+  private void setCreatorDetailsVariantVisibility(final boolean visible) {
+    ViewUtils.setGone(this.creatorInfoVariantContainer, !visible);
+    ViewUtils.setGone(this.creatorInfoContainer, visible);
+  }
 
   private void setGoalTextView(final @NonNull String goalString) {
     final String goalText = ViewUtils.isFontScaleLarge(context())
@@ -400,6 +472,17 @@ public final class ProjectViewHolder extends KSViewHolder {
     this.projectStateSubheadTextView.setText(this.fundingCanceledByCreatorString);
   }
 
+  private void setBlurbTextViews(final String blurb) {
+    final Spanned blurbHtml = Html.fromHtml(TextUtils.htmlEncode(blurb));
+    this.blurbTextView.setText(blurbHtml);
+    this.blurbVariantTextView.setText(blurbHtml);
+  }
+
+  private void setBlurbVariantVisibility(final boolean blurbVariantVisible) {
+    ViewUtils.setGone(this.blurbViewGroup, blurbVariantVisible);
+    ViewUtils.setGone(this.blurbVariantViewGroup, !blurbVariantVisible);
+  }
+
   private void setProjectDisclaimerGoalReachedString(final @NonNull DateTime deadline) {
     this.projectDisclaimerTextView.setText(this.ksString.format(
       this.projectDisclaimerGoalReachedString,
@@ -416,6 +499,17 @@ public final class ProjectViewHolder extends KSViewHolder {
       "deadline",
       mediumDateShortTime(goalAndDeadline.second)
     ));
+  }
+
+  private void setProjectLaunchDateString(final @NonNull String launchDate) {
+    final SpannableString launchedDateSpannableString = new SpannableString(this.ksString.format(
+      context().getString(R.string.You_launched_this_project_on_launch_date),
+      "launch_date",
+      launchDate
+    ));
+
+    ViewUtils.addBoldSpan(launchedDateSpannableString, launchDate);
+    this.projectLaunchDateTextView.setText(launchedDateSpannableString);
   }
 
   private void setProjectSocialClickListener() {
@@ -458,53 +552,44 @@ public final class ProjectViewHolder extends KSViewHolder {
     activity.overridePendingTransition(R.anim.slide_in_right, R.anim.fade_out_slide_out_left);
   }
 
-  @Nullable @OnClick(R.id.back_project_button)
-  public void backProjectButtonOnClick() {
-    this.delegate.projectViewHolderBackProjectClicked(this);
-  }
-
   @OnClick({R.id.blurb_view, R.id.campaign})
-  public void blurbClick() {
+  public void blurbOnClick() {
     this.delegate.projectViewHolderBlurbClicked(this);
   }
 
+  @OnClick(R.id.read_more)
+  public void blurbVariantOnClick() {
+    this.delegate.projectViewHolderBlurbVariantClicked(this);
+  }
+
   @OnClick(R.id.comments)
-  public void commentsClick() {
+  public void commentsOnClick() {
     this.delegate.projectViewHolderCommentsClicked(this);
   }
 
-  @OnClick({R.id.creator_name, R.id.creator_info})
-  public void creatorNameClick() {
+  @OnClick(R.id.creator_info)
+  public void creatorNameOnClick() {
     this.delegate.projectViewHolderCreatorClicked(this);
   }
 
-  @Nullable @OnClick(R.id.manage_pledge_button)
-  public void managePledgeOnClick() {
-    this.delegate.projectViewHolderManagePledgeClicked(this);
+  @OnClick(R.id.creator_info_variant)
+  public void creatorInfoVariantOnClick() {
+    this.delegate.projectViewHolderCreatorInfoVariantClicked(this);
+  }
+
+  @OnClick(R.id.project_dashboard_button)
+  public void creatorDashboardOnClick() {
+    this.delegate.projectViewHolderDashboardClicked(this);
   }
 
   @OnClick(R.id.play_button_overlay)
-  public void playButtonClick() {
+  public void playButtonOnClick() {
     this.delegate.projectViewHolderVideoStarted(this);
   }
 
-  @Nullable @OnClick(R.id.view_pledge_button)
-  public void viewPledgeOnClick() {
-    this.delegate.projectViewHolderViewPledgeClicked(this);
-  }
-
   @OnClick(R.id.updates)
-  public void updatesClick() {
+  public void updatesOnClick() {
     this.delegate.projectViewHolderUpdatesClicked(this);
-  }
-
-  /**
-   * Set landscape project action buttons in the ViewHolder rather than Activity.
-   */
-  private void setLandscapeActionButton(final @NonNull Project project) {
-    if (this.backProjectButton != null && this.managePledgeButton != null && this.viewPledgeButton != null) {
-      ProjectUtils.setActionButton(project, this.backProjectButton, this.managePledgeButton, this.viewPledgeButton);
-    }
   }
 
   /**
@@ -514,7 +599,7 @@ public final class ProjectViewHolder extends KSViewHolder {
     if (this.landOverlayTextViewGroup != null && this.nameCreatorViewGroup != null) {
       final int screenHeight = getScreenHeightDp(context());
       final float densityOffset = context().getResources().getDisplayMetrics().density;
-      final float topMargin = ((screenHeight / 3 * 2) * densityOffset) - this.grid4Dimen;  // offset for toolbar
+      final float topMargin = ((screenHeight / 3f * 2) * densityOffset) - this.grid10Dimen;
       ViewUtils.setRelativeViewGroupMargins(this.landOverlayTextViewGroup, this.grid4Dimen, (int) topMargin, this.grid4Dimen, 0);
 
       if (!project.hasVideo()) {
@@ -523,15 +608,5 @@ public final class ProjectViewHolder extends KSViewHolder {
         ViewUtils.setRelativeViewGroupMargins(this.nameCreatorViewGroup, 0, 0, 0, this.grid1Dimen);
       }
     }
-  }
-
-  private void setStatsContentDescription(final @NonNull Project project) {
-    final String backersCountContentDescription = NumberUtils.format(project.backersCount()) + " " +  this.backersString;
-    final String pledgedContentDescription = this.pledgedTextView.getText() + " " + this.goalTextView.getText();
-    final String deadlineCountdownContentDescription = this.deadlineCountdownTextView.getText() + " " + this.deadlineCountdownUnitTextView.getText();
-
-    this.backersCountTextView.setContentDescription(backersCountContentDescription);
-    this.pledgedTextView.setContentDescription(pledgedContentDescription);
-    this.deadlineCountdownTextView.setContentDescription(deadlineCountdownContentDescription);
   }
 }

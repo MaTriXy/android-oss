@@ -1,7 +1,5 @@
 package com.kickstarter.viewmodels;
 
-import android.support.annotation.NonNull;
-
 import com.kickstarter.libs.ActivityViewModel;
 import com.kickstarter.libs.CurrentConfigType;
 import com.kickstarter.libs.CurrentUserType;
@@ -13,6 +11,7 @@ import com.kickstarter.services.apiresponses.AccessTokenEnvelope;
 import com.kickstarter.services.apiresponses.ErrorEnvelope;
 import com.kickstarter.ui.activities.SignupActivity;
 
+import androidx.annotation.NonNull;
 import rx.Observable;
 import rx.subjects.BehaviorSubject;
 import rx.subjects.PublishSubject;
@@ -112,6 +111,10 @@ public interface SignupViewModel {
         });
 
       this.koala.trackRegisterFormView();
+
+      this.signupClick
+        .compose(bindToLifecycle())
+        .subscribe(__ -> this.lake.trackSignUpSubmitButtonClicked());
     }
 
     private Observable<AccessTokenEnvelope> submit(final @NonNull SignupData data) {

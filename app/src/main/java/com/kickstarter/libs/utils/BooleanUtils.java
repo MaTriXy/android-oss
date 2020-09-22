@@ -1,6 +1,6 @@
 package com.kickstarter.libs.utils;
 
-import android.support.annotation.Nullable;
+import androidx.annotation.Nullable;
 
 public final class BooleanUtils {
   private BooleanUtils() {}
@@ -20,6 +20,13 @@ public final class BooleanUtils {
       return bool;
     }
     return false;
+  }
+
+  /**
+   * Returns `false` if the integer is `0` or `null`, and `true` otherwise.
+   */
+  public static boolean isIntTrue(final @Nullable Integer integer) {
+    return integer != null && integer != 0;
   }
 
   /**

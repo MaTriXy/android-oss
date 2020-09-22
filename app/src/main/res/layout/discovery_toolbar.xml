@@ -5,17 +5,14 @@
   xmlns:android="http://schemas.android.com/apk/res/android"
   xmlns:app="http://schemas.android.com/apk/res-auto"
   xmlns:tools="http://schemas.android.com/tools"
-  android:layout_height="wrap_content"
-  android:elevation="0dp"
+  android:layout_height="?android:attr/actionBarSize"
   app:contentInsetLeft="0dp"
   app:contentInsetStart="0dp"
-  app:layout_collapseMode="parallax"
-  tools:ignore="UnusedAttribute"
   tools:showIn="@layout/discovery_layout">
 
   <LinearLayout
     android:layout_width="match_parent"
-    android:layout_height="?attr/actionBarSize"
+    android:layout_height="match_parent"
     android:baselineAligned="false"
     android:gravity="center_vertical"
     android:orientation="horizontal">
@@ -31,17 +28,19 @@
       android:orientation="horizontal"
       tools:ignore="RtlSymmetry">
 
-      <com.kickstarter.ui.views.IconButton
+      <ImageButton
         android:id="@+id/menu_button"
-        style="@style/ToolbarIcon"
-        android:text="@string/menu_icon" />
+        style="@style/ToolbarVectorIcon"
+        android:contentDescription="@string/discovery_accessibility_toolbar_buttons_user_menu"
+        android:src="@drawable/ic_menu" />
 
       <TextView
         android:id="@+id/filter_text_view"
-        style="@style/Headline"
+        style="@style/ToolbarTitle"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:background="@drawable/button_selector"
+        android:layout_marginStart="0dp"
+        android:background="@drawable/click_indicator_light"
         android:ellipsize="end"
         android:gravity="center_vertical"
         android:maxLines="1"
@@ -57,22 +56,10 @@
       android:orientation="horizontal">
 
       <ImageButton
-        android:id="@+id/creator_dashboard_button"
-        style="@style/ToolbarVectorIcon"
-        android:src="@drawable/icon__graph_line"
-        android:contentDescription="@string/tabbar_dashboard"/>
-
-      <ImageButton
-        android:id="@+id/activity_feed_button"
-        style="@style/ToolbarIcon"
-        android:src="@drawable/icon__bolt"
-        android:contentDescription="@string/tabbar_activity"/>
-
-      <ImageButton
         android:id="@+id/search_button"
         style="@style/ToolbarIcon"
-        android:src="@drawable/icon__search"
-        android:contentDescription="@string/tabbar_search"/>
+        android:contentDescription="@string/tabbar_search"
+        android:src="@drawable/icon__search" />
 
     </LinearLayout>
 

@@ -1,11 +1,9 @@
 package com.kickstarter.ui.activities;
 
 import android.content.Intent;
+import android.net.Uri;
 import android.os.Bundle;
-import android.support.annotation.NonNull;
-import android.support.annotation.Nullable;
 import android.util.Pair;
-import android.view.View;
 import android.webkit.WebView;
 
 import com.kickstarter.R;
@@ -13,20 +11,22 @@ import com.kickstarter.libs.BaseActivity;
 import com.kickstarter.libs.KSString;
 import com.kickstarter.libs.RefTag;
 import com.kickstarter.libs.qualifiers.RequiresActivityViewModel;
-import com.kickstarter.libs.utils.AnimationUtils;
+import com.kickstarter.libs.utils.ApplicationUtils;
 import com.kickstarter.libs.utils.NumberUtils;
-import com.kickstarter.models.Project;
 import com.kickstarter.models.Update;
 import com.kickstarter.services.KSUri;
-import com.kickstarter.services.KSWebViewClient;
 import com.kickstarter.services.RequestHandler;
 import com.kickstarter.ui.IntentKey;
 import com.kickstarter.ui.toolbars.KSToolbar;
 import com.kickstarter.ui.views.KSWebView;
 import com.kickstarter.viewmodels.UpdateViewModel;
 
+import org.jetbrains.annotations.NotNull;
+
 import java.util.Arrays;
 
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import butterknife.Bind;
 import butterknife.BindString;
 import butterknife.ButterKnife;
@@ -37,9 +37,8 @@ import static com.kickstarter.libs.rx.transformers.Transformers.observeForUI;
 import static com.kickstarter.libs.utils.TransitionUtils.slideInFromLeft;
 
 @RequiresActivityViewModel(UpdateViewModel.ViewModel.class)
-public class UpdateActivity extends BaseActivity<UpdateViewModel.ViewModel> implements KSWebViewClient.Delegate {
+public class UpdateActivity extends BaseActivity<UpdateViewModel.ViewModel> implements KSWebView.Delegate {
   protected @Bind(R.id.update_web_view) KSWebView ksWebView;
-  protected @Bind(R.id.loading_indicator_view) View loadingIndicatorView;
   protected @Bind(R.id.update_toolbar) KSToolbar toolbar;
 
   protected @BindString(R.string.social_update_number) String updateNumberString;
@@ -55,14 +54,19 @@ public class UpdateActivity extends BaseActivity<UpdateViewModel.ViewModel> impl
 
     this.ksString = environment().ksString();
 
-    this.ksWebView.client().setDelegate(this);
-    this.ksWebView.client().registerRequestHandlers(
+    this.ksWebView.setDelegate(this);
+    this.ksWebView.registerRequestHandlers(
       Arrays.asList(
         new RequestHandler(KSUri::isProjectUpdateUri, this::handleProjectUpdateUriRequest),
         new RequestHandler(KSUri::isProjectUpdateCommentsUri, this::handleProjectUpdateCommentsUriRequest),
         new RequestHandler(KSUri::isProjectUri, this::handleProjectUriRequest)
       )
     );
+
+    this.viewModel.outputs.openProjectExternally()
+      .compose(bindToLifecycle())
+      .compose(observeForUI())
+      .subscribe(this::openProjectExternally);
 
     this.viewModel.outputs.startCommentsActivity()
       .compose(bindToLifecycle())
@@ -72,7 +76,7 @@ public class UpdateActivity extends BaseActivity<UpdateViewModel.ViewModel> impl
     this.viewModel.outputs.startProjectActivity()
       .compose(bindToLifecycle())
       .compose(observeForUI())
-      .subscribe(projectAndRefTag -> this.startProjectActivity(projectAndRefTag.first, projectAndRefTag.second));
+      .subscribe(uriAndRefTag -> this.startProjectActivity(uriAndRefTag.first, uriAndRefTag.second));
 
     this.viewModel.outputs.startShareIntent()
       .compose(bindToLifecycle())
@@ -96,6 +100,12 @@ public class UpdateActivity extends BaseActivity<UpdateViewModel.ViewModel> impl
       .subscribe(this.ksWebView::loadUrl);
   }
 
+  @Override
+  protected void onDestroy() {
+    super.onDestroy();
+    this.ksWebView.setDelegate(null);
+  }
+
   private boolean handleProjectUpdateCommentsUriRequest(final @NonNull Request request, final @NonNull WebView webView) {
     this.viewModel.inputs.goToCommentsRequest(request);
     return true;
@@ -111,6 +121,10 @@ public class UpdateActivity extends BaseActivity<UpdateViewModel.ViewModel> impl
     return true;
   }
 
+  private void openProjectExternally(final @NonNull String projectUrl) {
+    ApplicationUtils.openUrlExternally(this, projectUrl);
+  }
+
   private void setToolbarTitle(final @NonNull String updateSequence) {
     this.toolbar.setTitle(this.ksString.format(this.updateNumberString, "update_number", updateSequence));
   }
@@ -121,21 +135,23 @@ public class UpdateActivity extends BaseActivity<UpdateViewModel.ViewModel> impl
     startActivityWithTransition(intent, R.anim.slide_in_right, R.anim.fade_out_slide_out_left);
   }
 
-  private void startProjectActivity(final @NonNull Project project, final @NonNull RefTag refTag) {
+  private void startProjectActivity(final @NonNull Uri uri, final @NonNull RefTag refTag) {
     final Intent intent = new Intent(this, ProjectActivity.class)
-      .putExtra(IntentKey.PROJECT, project)
+      .setData(uri)
       .putExtra(IntentKey.REF_TAG, refTag);
     startActivityWithTransition(intent, R.anim.slide_in_right, R.anim.fade_out_slide_out_left);
   }
 
-  private void startShareIntent(final @NonNull Update update) {
+  private void startShareIntent(final @NonNull Pair<Update, String> updateAndShareUrl) {
+    final Update update = updateAndShareUrl.first;
+    final String shareUrl = updateAndShareUrl.second;
     final String shareMessage = this.ksString.format(this.shareUpdateCountString, "update_count", NumberUtils.format(update.sequence()))
       + ": " + update.title();
 
     final Intent intent = new Intent(Intent.ACTION_SEND)
       .setType("text/plain")
-      .putExtra(Intent.EXTRA_TEXT, shareMessage + " " + update.urls().web().update());
-    startActivity(intent);
+      .putExtra(Intent.EXTRA_TEXT, shareMessage + " " + shareUrl);
+    startActivity(Intent.createChooser(intent, getString(R.string.Share_update)));
   }
 
   @Override
@@ -149,20 +165,13 @@ public class UpdateActivity extends BaseActivity<UpdateViewModel.ViewModel> impl
   }
 
   @Override
-  public void webViewExternalLinkActivated(final @NonNull KSWebViewClient webViewClient, final @NonNull String url) {
+  public void externalLinkActivated(final @NotNull String url) {
     this.viewModel.inputs.externalLinkActivated();
   }
 
   @Override
-  public void webViewOnPageFinished(final @NonNull KSWebViewClient webViewClient, final @Nullable String url) {
-    this.loadingIndicatorView.startAnimation(AnimationUtils.INSTANCE.disappearAnimation());
-  }
+  public void pageIntercepted(final @NotNull String url) {}
 
   @Override
-  public void webViewOnPageStarted(final @NonNull KSWebViewClient webViewClient, final @Nullable String url) {
-    this.loadingIndicatorView.startAnimation(AnimationUtils.INSTANCE.appearAnimation());
-  }
-
-  @Override
-  public void webViewPageIntercepted(final @NonNull KSWebViewClient webViewClient, final @NonNull String url) {}
+  public void onReceivedError(final @NotNull String url) {}
 }

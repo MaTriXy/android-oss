@@ -1,8 +1,5 @@
 package com.kickstarter.ui.adapters;
 
-import android.support.annotation.LayoutRes;
-import android.support.annotation.NonNull;
-import android.support.annotation.Nullable;
 import android.view.View;
 
 import com.kickstarter.R;
@@ -11,6 +8,7 @@ import com.kickstarter.ui.adapters.data.NavigationDrawerData;
 import com.kickstarter.ui.viewholders.EmptyViewHolder;
 import com.kickstarter.ui.viewholders.KSViewHolder;
 import com.kickstarter.ui.viewholders.discoverydrawer.ChildFilterViewHolder;
+import com.kickstarter.ui.viewholders.discoverydrawer.HeaderViewHolder;
 import com.kickstarter.ui.viewholders.discoverydrawer.LoggedInViewHolder;
 import com.kickstarter.ui.viewholders.discoverydrawer.LoggedOutViewHolder;
 import com.kickstarter.ui.viewholders.discoverydrawer.ParentFilterViewHolder;
@@ -20,6 +18,9 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+import androidx.annotation.LayoutRes;
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import rx.Observable;
 
 public class DiscoveryDrawerAdapter extends KSAdapter {
@@ -62,8 +63,10 @@ public class DiscoveryDrawerAdapter extends KSAdapter {
       } else {
         return R.layout.discovery_drawer_child_filter_view;
       }
+    } else if (datum instanceof Integer) {
+      return R.layout.discovery_drawer_header;
     }
-    return R.layout.discovery_drawer_divider_view;
+    return R.layout.horizontal_line_1dp_view;
   }
 
   @Override
@@ -73,7 +76,7 @@ public class DiscoveryDrawerAdapter extends KSAdapter {
     if (object == null) {
       return null;
     }
-    if (object instanceof User) {
+    if (object instanceof User || object instanceof Integer) {
       return object;
     }
 
@@ -106,7 +109,9 @@ public class DiscoveryDrawerAdapter extends KSAdapter {
         return new TopFilterViewHolder(view, this.delegate);
       case R.layout.discovery_drawer_child_filter_view:
         return new ChildFilterViewHolder(view, this.delegate);
-      case R.layout.discovery_drawer_divider_view:
+      case R.layout.discovery_drawer_header:
+        return new HeaderViewHolder(view);
+      case R.layout.horizontal_line_1dp_view:
       default:
         return new EmptyViewHolder(view);
     }
@@ -124,6 +129,10 @@ public class DiscoveryDrawerAdapter extends KSAdapter {
 
     newSections.add(Collections.singletonList(data.user()));
 
+    newSections.add(Collections.singletonList(null)); // Divider
+
+    newSections.add(Collections.singletonList(R.string.Collections));
+
     final List<NavigationDrawerData.Section> topFilterSections = Observable.from(data.sections())
       .filter(NavigationDrawerData.Section::isTopFilter)
       .toList().toBlocking().single();
@@ -137,6 +146,8 @@ public class DiscoveryDrawerAdapter extends KSAdapter {
     }
 
     newSections.add(Collections.singletonList(null)); // Divider
+
+    newSections.add(Collections.singletonList(R.string.discovery_filters_categories_title));
 
     for (final NavigationDrawerData.Section section : categoryFilterSections) {
       newSections.add(new ArrayList<>(section.rows()));

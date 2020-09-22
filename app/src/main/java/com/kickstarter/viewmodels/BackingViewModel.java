@@ -1,9 +1,10 @@
 package com.kickstarter.viewmodels;
 
-import android.support.annotation.NonNull;
+import android.content.Intent;
 import android.util.Pair;
 
 import com.kickstarter.libs.ActivityViewModel;
+import com.kickstarter.libs.CurrentUserType;
 import com.kickstarter.libs.Environment;
 import com.kickstarter.libs.KSCurrency;
 import com.kickstarter.libs.RefTag;
@@ -24,12 +25,15 @@ import com.kickstarter.models.Reward;
 import com.kickstarter.models.RewardsItem;
 import com.kickstarter.models.User;
 import com.kickstarter.services.ApiClientType;
+import com.kickstarter.services.ApolloClientType;
 import com.kickstarter.ui.IntentKey;
 import com.kickstarter.ui.activities.BackingActivity;
 
+import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.List;
 
+import androidx.annotation.NonNull;
 import rx.Observable;
 import rx.subjects.BehaviorSubject;
 import rx.subjects.PublishSubject;
@@ -124,17 +128,25 @@ public interface BackingViewModel {
 
   final class ViewModel extends ActivityViewModel<BackingActivity> implements Inputs, Outputs {
     private final ApiClientType client;
+    private final CurrentUserType currentUser;
     private final KSCurrency ksCurrency;
+    private ApolloClientType apolloClient;
 
     public ViewModel(final @NonNull Environment environment) {
       super(environment);
 
       this.client = environment.apiClient();
+      this.currentUser = environment.currentUser();
       this.ksCurrency = environment.ksCurrency();
+      this.apolloClient = environment.apolloClient();
 
-      final Observable<User> backerFromIntent = intent()
-        .map(i -> i.getParcelableExtra(IntentKey.BACKER))
+      final Observable<User> loggedInUser = this.currentUser.loggedInUser();
+
+      final Observable<User> initialBacker = intent()
+        .compose(combineLatestPair(loggedInUser))
+        .map(this::backer)
         .ofType(User.class);
+
 
       final Observable<Project> project = intent()
         .map(i -> i.getParcelableExtra(IntentKey.PROJECT))
@@ -144,7 +156,11 @@ public interface BackingViewModel {
         .map(i -> i.getBooleanExtra(IntentKey.IS_FROM_MESSAGES_ACTIVITY, false))
         .ofType(Boolean.class);
 
-      final Observable<Backing> backing = Observable.combineLatest(project, backerFromIntent, Pair::create)
+      final Observable<Boolean> isCreator = initialBacker
+        .compose(combineLatestPair(loggedInUser))
+        .map(backerAndCurrentUser -> backerAndCurrentUser.first.id() != backerAndCurrentUser.second.id());
+
+      final Observable<Backing> backing = Observable.combineLatest(project, initialBacker, Pair::create)
         .switchMap(pb -> this.client.fetchProjectBacking(pb.first, pb.second))
         .compose(neverError())
         .share();
@@ -313,15 +329,26 @@ public interface BackingViewModel {
       rewardIsReceivable
         .compose(combineLatestPair(backingIsCollected))
         .map(isReceivableAndCollected -> isReceivableAndCollected.first && isReceivableAndCollected.second)
+        .compose(combineLatestPair(isCreator))
+        .map(collectibleAndIsCreator -> collectibleAndIsCreator.first && !collectibleAndIsCreator.second)
         .map(BooleanUtils::negate)
         .compose(bindToLifecycle())
         .subscribe(this.receivedSectionIsGone);
     }
 
+    private User backer(final @NonNull Pair<Intent, User> intentAndUser) {
+      final Intent intent = intentAndUser.first;
+      if (intent.hasExtra(IntentKey.BACKER)) {
+        return intent.getParcelableExtra(IntentKey.BACKER);
+      } else {
+        return intentAndUser.second;
+      }
+    }
+
     private static @NonNull Pair<String, String> backingAmountAndDate(final @NonNull KSCurrency ksCurrency,
       final @NonNull Project project, final @NonNull Backing backing) {
 
-      final String amount = ksCurrency.format(backing.amount(), project);
+      final String amount = ksCurrency.format(backing.amount(), project, RoundingMode.HALF_UP);
       final String date = DateTimeUtils.fullDate(backing.pledgedAt());
 
       return Pair.create(amount, date);
@@ -330,13 +357,13 @@ public interface BackingViewModel {
     private static @NonNull Pair<String, String> rewardMinimumAndDescription(final @NonNull KSCurrency ksCurrency,
       final @NonNull Project project, final @NonNull Reward reward) {
 
-      final String minimum = ksCurrency.format(reward.minimum(), project);
+      final String minimum = ksCurrency.format(reward.minimum(), project, RoundingMode.HALF_UP);
       return Pair.create(minimum, reward.description());
     }
 
+    private final PublishSubject<Boolean> markAsReceivedSwitchChecked = PublishSubject.create();
     private final PublishSubject<Void> projectClicked = PublishSubject.create();
     private final PublishSubject<Void> viewMessagesButtonClicked = PublishSubject.create();
-    private final PublishSubject<Boolean> markAsReceivedSwitchChecked = PublishSubject.create();
 
     private final BehaviorSubject<String> backerNameTextViewText = BehaviorSubject.create();
     private final BehaviorSubject<String> backerNumberTextViewText = BehaviorSubject.create();
@@ -364,14 +391,14 @@ public interface BackingViewModel {
     public final Inputs inputs = this;
     public final Outputs outputs = this;
 
+    @Override public void markAsReceivedSwitchChecked(final boolean checked) {
+      this.markAsReceivedSwitchChecked.onNext(checked);
+    }
     @Override public void projectClicked() {
       this.projectClicked.onNext(null);
     }
     @Override public void viewMessagesButtonClicked() {
       this.viewMessagesButtonClicked.onNext(null);
-    }
-    @Override public void markAsReceivedSwitchChecked(final boolean checked) {
-      this.markAsReceivedSwitchChecked.onNext(checked);
     }
 
     @Override public @NonNull Observable<String> backerNameTextViewText() {

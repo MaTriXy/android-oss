@@ -1,9 +1,9 @@
 package com.kickstarter.libs.utils;
 
-import android.support.annotation.NonNull;
-
 import com.kickstarter.libs.RefTag;
 import com.kickstarter.services.DiscoveryParams;
+
+import androidx.annotation.NonNull;
 
 import static com.kickstarter.libs.utils.BooleanUtils.isTrue;
 import static com.kickstarter.libs.utils.IntegerUtils.isNonZero;
@@ -35,6 +35,11 @@ public final class DiscoveryParamsUtils {
         return RefTag.recommended(sort);
       }
       return RefTag.recommended();
+    }
+
+    final Integer tagId = params.tagId();
+    if (tagId != null) {
+      return RefTag.collection(tagId);
     }
 
     if (isNonZero(params.social())) {

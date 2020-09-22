@@ -1,12 +1,11 @@
 package com.kickstarter.libs.utils;
 
-import android.support.annotation.NonNull;
-
 import com.kickstarter.models.Backing;
 import com.kickstarter.models.Project;
 import com.kickstarter.models.Reward;
 
-import static com.kickstarter.libs.utils.BooleanUtils.isTrue;
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 
 public final class BackingUtils {
   private BackingUtils() {}
@@ -19,10 +18,17 @@ public final class BackingUtils {
 
     final Long rewardId = backing.rewardId();
     if (rewardId == null) {
-      return false;
+      return RewardUtils.isNoReward(reward);
     }
 
     return rewardId == reward.id();
+  }
+
+  public static boolean isErrored(final @Nullable Backing backing) {
+    if (backing == null) {
+      return false;
+    }
+    return backing.status().equals(Backing.STATUS_ERRORED);
   }
 
   public static boolean isShippable(final @NonNull Backing backing) {
@@ -30,6 +36,18 @@ public final class BackingUtils {
     if (reward == null) {
       return false;
     }
-    return isTrue(reward.shippingEnabled());
+    return RewardUtils.isShippable(reward);
+  }
+
+  public static @Nullable Reward backedReward(final @NonNull Project project) {
+    if (project.hasRewards()) {
+      for (final Reward reward : project.rewards()) {
+        if (isBacked(project, reward)) {
+          return reward;
+        }
+      }
+    }
+
+    return null;
   }
 }

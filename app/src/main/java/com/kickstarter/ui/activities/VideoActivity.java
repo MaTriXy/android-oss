@@ -1,10 +1,7 @@
 package com.kickstarter.ui.activities;
 
-import android.annotation.TargetApi;
 import android.net.Uri;
 import android.os.Bundle;
-import android.support.annotation.NonNull;
-import android.support.annotation.Nullable;
 import android.view.View;
 import android.widget.ProgressBar;
 
@@ -18,33 +15,29 @@ import com.google.android.exoplayer2.source.hls.HlsMediaSource;
 import com.google.android.exoplayer2.trackselection.AdaptiveTrackSelection;
 import com.google.android.exoplayer2.trackselection.DefaultTrackSelector;
 import com.google.android.exoplayer2.trackselection.TrackSelection;
-import com.google.android.exoplayer2.trackselection.TrackSelector;
 import com.google.android.exoplayer2.ui.PlayerView;
-import com.google.android.exoplayer2.upstream.DefaultBandwidthMeter;
 import com.google.android.exoplayer2.upstream.DefaultHttpDataSourceFactory;
 import com.google.android.exoplayer2.util.Util;
 import com.kickstarter.R;
-import com.kickstarter.libs.ApiCapabilities;
 import com.kickstarter.libs.BaseActivity;
 import com.kickstarter.libs.Build;
 import com.kickstarter.libs.qualifiers.RequiresActivityViewModel;
 import com.kickstarter.libs.rx.transformers.Transformers;
-import com.kickstarter.services.interceptors.WebRequestInterceptor;
+import com.kickstarter.libs.utils.WebUtils;
 import com.kickstarter.viewmodels.VideoViewModel;
 import com.trello.rxlifecycle.ActivityEvent;
 
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import butterknife.Bind;
 import butterknife.ButterKnife;
 
 @RequiresActivityViewModel(VideoViewModel.ViewModel.class)
 public final class VideoActivity extends BaseActivity<VideoViewModel.ViewModel> {
-  private static final DefaultBandwidthMeter BANDWIDTH_METER = new DefaultBandwidthMeter();
-
   private Build build;
   private ExoPlayer player;
   private long playerPosition;
-  private TrackSelector trackSelector;
-
+  private DefaultTrackSelector trackSelector;
 
   protected @Bind(R.id.video_player_layout) View rootView;
   protected @Bind(R.id.player_view) PlayerView playerView;
@@ -85,15 +78,11 @@ public final class VideoActivity extends BaseActivity<VideoViewModel.ViewModel> 
     }
   }
 
-  @TargetApi(19)
   private int systemUIFlags() {
-    final int flags = View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+    return View.SYSTEM_UI_FLAG_LAYOUT_STABLE
       | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-      | View.SYSTEM_UI_FLAG_FULLSCREEN;
-
-    return ApiCapabilities.canSetImmersiveSystemUI()
-      ? flags | View.SYSTEM_UI_FLAG_IMMERSIVE
-      : flags;
+      | View.SYSTEM_UI_FLAG_FULLSCREEN
+      | View.SYSTEM_UI_FLAG_IMMERSIVE;
   }
 
   private void onStateChanged(final int playbackState) {
@@ -109,7 +98,7 @@ public final class VideoActivity extends BaseActivity<VideoViewModel.ViewModel> 
   }
 
   private void preparePlayer(final @NonNull String videoUrl) {
-    final TrackSelection.Factory adaptiveTrackSelectionFactory = new AdaptiveTrackSelection.Factory(BANDWIDTH_METER);
+    final TrackSelection.Factory adaptiveTrackSelectionFactory = new AdaptiveTrackSelection.Factory();
     this.trackSelector = new DefaultTrackSelector(adaptiveTrackSelectionFactory);
 
     this.player = ExoPlayerFactory.newSimpleInstance(this, this.trackSelector);
@@ -123,15 +112,14 @@ public final class VideoActivity extends BaseActivity<VideoViewModel.ViewModel> 
   }
 
   private MediaSource getMediaSource(final @NonNull String videoUrl) {
-    final DefaultHttpDataSourceFactory dataSourceFactory = new DefaultHttpDataSourceFactory(WebRequestInterceptor.userAgent(this.build));
+    final DefaultHttpDataSourceFactory dataSourceFactory = new DefaultHttpDataSourceFactory(WebUtils.INSTANCE.userAgent(this.build));
     final Uri videoUri = Uri.parse(videoUrl);
     final int fileType = Util.inferContentType(videoUri);
 
-    switch (fileType) {
-      case C.TYPE_HLS:
-        return new HlsMediaSource.Factory(dataSourceFactory).createMediaSource(videoUri);
-      default:
-        return new ExtractorMediaSource.Factory(dataSourceFactory).createMediaSource(videoUri);
+    if (fileType == C.TYPE_HLS) {
+      return new HlsMediaSource.Factory(dataSourceFactory).createMediaSource(videoUri);
+    } else {
+      return new ExtractorMediaSource.Factory(dataSourceFactory).createMediaSource(videoUri);
     }
   }
 
@@ -145,8 +133,8 @@ public final class VideoActivity extends BaseActivity<VideoViewModel.ViewModel> 
     }
   }
 
-  private @NonNull Player.DefaultEventListener eventListener =
-    new Player.DefaultEventListener() {
+  private @NonNull Player.EventListener eventListener =
+    new Player.EventListener() {
       @Override
       public void onPlayerStateChanged(final boolean playWhenReady, final int playbackState) {
         onStateChanged(playbackState);

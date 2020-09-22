@@ -3,8 +3,6 @@ package com.kickstarter.ui.activities;
 import android.app.Activity;
 import android.content.Intent;
 import android.os.Bundle;
-import android.support.annotation.NonNull;
-import android.support.annotation.Nullable;
 import android.widget.Button;
 import android.widget.TextView;
 
@@ -23,6 +21,8 @@ import com.kickstarter.viewmodels.LoginToutViewModel;
 
 import java.util.Arrays;
 
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import butterknife.Bind;
 import butterknife.BindString;
 import butterknife.ButterKnife;
@@ -30,7 +30,7 @@ import butterknife.OnClick;
 import rx.Observable;
 import rx.android.schedulers.AndroidSchedulers;
 
-import static com.kickstarter.libs.utils.TransitionUtils.slideInFromRight;
+import static com.kickstarter.libs.utils.TransitionUtils.fadeIn;
 import static com.kickstarter.libs.utils.TransitionUtils.transition;
 
 @RequiresActivityViewModel(LoginToutViewModel.ViewModel.class)
@@ -140,19 +140,19 @@ public final class LoginToutActivity extends BaseActivity<LoginToutViewModel.Vie
       .putExtra(IntentKey.FACEBOOK_USER, facebookUser)
       .putExtra(IntentKey.FACEBOOK_TOKEN, accessTokenString);
     startActivityForResult(intent, ActivityRequestCodes.LOGIN_FLOW);
-    transition(this, slideInFromRight());
+    transition(this, fadeIn());
   }
 
   private void startLogin() {
     final Intent intent = new Intent(this, LoginActivity.class);
     startActivityForResult(intent, ActivityRequestCodes.LOGIN_FLOW);
-    transition(this, slideInFromRight());
+    transition(this, fadeIn());
   }
 
   private void startSignup() {
     final Intent intent = new Intent(this, SignupActivity.class);
     startActivityForResult(intent, ActivityRequestCodes.LOGIN_FLOW);
-    transition(this, slideInFromRight());
+    transition(this, fadeIn());
   }
 
   public void startTwoFactorFacebookChallenge() {
@@ -161,6 +161,6 @@ public final class LoginToutActivity extends BaseActivity<LoginToutViewModel.Vie
       .putExtra(IntentKey.FACEBOOK_TOKEN, AccessToken.getCurrentAccessToken().getToken());
 
     startActivityForResult(intent, ActivityRequestCodes.LOGIN_FLOW);
-    transition(this, slideInFromRight());
+    transition(this, fadeIn());
   }
 }

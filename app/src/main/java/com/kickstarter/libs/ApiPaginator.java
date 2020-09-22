@@ -1,6 +1,5 @@
 package com.kickstarter.libs;
 
-import android.support.annotation.NonNull;
 import android.util.Pair;
 
 import com.kickstarter.libs.rx.transformers.Transformers;
@@ -12,6 +11,7 @@ import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
 
+import androidx.annotation.NonNull;
 import rx.Observable;
 import rx.functions.Func1;
 import rx.functions.Func2;
@@ -249,6 +249,7 @@ public final class ApiPaginator<Data, Envelope, Params> {
         .doOnNext(this::keepMorePath)
         .map(this.envelopeToListOfData)
         .map(this.pageTransformation)
+        .takeUntil(data -> data.isEmpty())
         .doOnSubscribe(() -> this._isFetching.onNext(true))
         .doAfterTerminate(() -> this._isFetching.onNext(false));
   }

@@ -1,8 +1,6 @@
 package com.kickstarter.ui.views;
 
 import android.content.Context;
-import android.support.annotation.NonNull;
-import android.support.annotation.Nullable;
 import android.util.AttributeSet;
 import android.widget.ScrollView;
 
@@ -16,6 +14,8 @@ import com.kickstarter.services.apiresponses.PushNotificationEnvelope;
 
 import javax.inject.Inject;
 
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import butterknife.ButterKnife;
 import butterknife.OnClick;
 
@@ -60,6 +60,25 @@ public final class DebugPushNotificationsView extends ScrollView {
   @OnClick(R.id.unregister_device_button)
   public void unregisterDeviceButtonClick() {
     this.deviceRegistrar.unregisterDevice();
+  }
+
+  @OnClick(R.id.simulate_errored_pledge_button)
+  public void simulateErroredPledgeButtonClick() {
+    final GCM gcm = GCM.builder()
+      .title("Payment failure")
+      .alert("Response needed! Get your reward for backing SKULL GRAPHIC TEE.")
+      .build();
+
+    final PushNotificationEnvelope envelope = PushNotificationEnvelope.builder()
+      .gcm(gcm)
+      .erroredPledge(
+        PushNotificationEnvelope.ErroredPledge.builder()
+          .projectId(PROJECT_ID)
+          .build()
+      )
+      .build();
+
+    this.pushNotifications.add(envelope);
   }
 
   @OnClick(R.id.simulate_friend_backing_button)
