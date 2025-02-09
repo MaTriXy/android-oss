@@ -3,11 +3,15 @@ package com.kickstarter.libs.utils;
 import android.content.SharedPreferences;
 
 import com.kickstarter.KSRobolectricTestCase;
+import com.kickstarter.libs.utils.extensions.ProjectExt;
 import com.kickstarter.mock.factories.ProjectFactory;
 import com.kickstarter.libs.MockSharedPreferences;
 import com.kickstarter.libs.RefTag;
 import com.kickstarter.models.Project;
+import com.kickstarter.models.Urls;
+import com.kickstarter.models.Web;
 
+import org.joda.time.DateTime;
 import org.junit.Test;
 
 import java.net.CookieManager;
@@ -48,19 +52,20 @@ public final class RefTagUtilsTest extends KSRobolectricTestCase {
 
   @Test
   public void testBuildCookieForRefTagAndProject_WithWellFormedUrl() {
-    final Project project = ProjectFactory.project();
+    final Project project = ProjectFactory.project().toBuilder().deadline(DateTime.now().plusMillis(300).plusDays(10).plusSeconds(1)).build();
+
     final RefTag refTag = RefTag.category();
     final HttpCookie cookie = RefTagUtils.buildCookieWithRefTagAndProject(refTag, project);
 
     assertNotNull(cookie);
-    assertEquals(ProjectUtils.timeInSecondsUntilDeadline(project).longValue(), cookie.getMaxAge());
+    assertEquals(ProjectExt.timeInSecondsUntilDeadline(project), cookie.getMaxAge());
     assertEquals("www.kickstarter.com", cookie.getDomain());
   }
 
   @Test
   public void testBuildCookieForRefTagAndProject_WithMalformedUrl() {
-    final Project.Urls.Web webUrls = ProjectFactory.project().urls().web().toBuilder().project("such:\\bad^<data").build();
-    final Project.Urls urls = ProjectFactory.project().urls().toBuilder().web(webUrls).build();
+    final Web webUrls = ProjectFactory.project().urls().web().toBuilder().project("such:\\bad^<data").build();
+    final Urls urls = ProjectFactory.project().urls().toBuilder().web(webUrls).build();
     final Project project = ProjectFactory.project().toBuilder().urls(urls).build();
 
     final RefTag refTag = RefTag.category();

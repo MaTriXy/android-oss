@@ -1,20 +1,21 @@
 package com.kickstarter.ui.viewholders
 
-import android.view.View
-import androidx.annotation.NonNull
 import com.kickstarter.R
-import com.kickstarter.libs.rx.transformers.Transformers.observeForUI
+import com.kickstarter.databinding.ItemPaymentMethodBinding
+import com.kickstarter.libs.rx.transformers.Transformers.observeForUIV2
+import com.kickstarter.libs.utils.extensions.addToDisposable
 import com.kickstarter.models.StoredCard
 import com.kickstarter.viewmodels.PaymentMethodsViewHolderViewModel
-import kotlinx.android.synthetic.main.item_payment_method.view.*
+import io.reactivex.disposables.CompositeDisposable
 
-class PaymentMethodsViewHolder(@NonNull view: View, @NonNull val delegate: Delegate) : KSViewHolder(view) {
+class PaymentMethodsViewHolder(private val binding: ItemPaymentMethodBinding, val delegate: Delegate) : KSViewHolder(binding.root) {
 
-    private val ksString = environment().ksString()
-    private val vm: PaymentMethodsViewHolderViewModel.ViewModel = PaymentMethodsViewHolderViewModel.ViewModel(environment())
+    private val ksString = requireNotNull(environment().ksString())
+    private val vm: PaymentMethodsViewHolderViewModel.PaymentMethodsViewHolderViewModel = PaymentMethodsViewHolderViewModel.PaymentMethodsViewHolderViewModel()
 
     private val creditCardExpirationString = this.context().getString(R.string.Credit_card_expiration)
     private val cardEndingInString = this.context().getString(R.string.Card_ending_in_last_four)
+    private val disposables = CompositeDisposable()
 
     interface Delegate {
         fun deleteCardButtonClicked(paymentMethodsViewHolder: PaymentMethodsViewHolder, paymentSourceId: String)
@@ -23,32 +24,31 @@ class PaymentMethodsViewHolder(@NonNull view: View, @NonNull val delegate: Deleg
     init {
 
         this.vm.outputs.issuerImage()
-                .compose(bindToLifecycle())
-                .compose(observeForUI())
-                .subscribe { this.itemView.credit_card_logo.setImageResource(it) }
+            .compose(observeForUIV2())
+            .subscribe { binding.creditCardLogo.setImageResource(it) }
+            .addToDisposable(disposables)
 
         this.vm.outputs.expirationDate()
-                .compose(bindToLifecycle())
-                .compose(observeForUI())
-                .subscribe { setExpirationDateTextView(it) }
+            .compose(observeForUIV2())
+            .subscribe { setExpirationDateTextView(it) }
+            .addToDisposable(disposables)
 
         this.vm.outputs.id()
-                .compose(bindToLifecycle())
-                .compose(observeForUI())
-                .subscribe { this.delegate.deleteCardButtonClicked(this, it) }
+            .compose(observeForUIV2())
+            .subscribe { this.delegate.deleteCardButtonClicked(this, it) }
+            .addToDisposable(disposables)
 
         this.vm.outputs.lastFour()
-                .compose(bindToLifecycle())
-                .compose(observeForUI())
-                .subscribe { setLastFourTextView(it) }
+            .compose(observeForUIV2())
+            .subscribe { setLastFourTextView(it) }
+            .addToDisposable(disposables)
 
         this.vm.outputs.issuer()
-                .compose(bindToLifecycle())
-                .compose(observeForUI())
-                .subscribe { this.itemView.credit_card_logo.contentDescription = it }
+            .compose(observeForUIV2())
+            .subscribe { binding.creditCardLogo.contentDescription = it }
+            .addToDisposable(disposables)
 
-        this.itemView.delete_card.setOnClickListener { this.vm.inputs.deleteIconClicked() }
-
+        binding.deleteCard.setOnClickListener { this.vm.inputs.deleteIconClicked() }
     }
 
     override fun bindData(data: Any?) {
@@ -57,12 +57,18 @@ class PaymentMethodsViewHolder(@NonNull view: View, @NonNull val delegate: Deleg
     }
 
     private fun setExpirationDateTextView(date: String) {
-        this.itemView.credit_card_expiration_date.text = this.ksString.format(this.creditCardExpirationString,
-                "expiration_date", date)
+        binding.creditCardExpirationDate.text = this.ksString.format(
+            this.creditCardExpirationString,
+            "expiration_date", date
+        )
     }
 
     private fun setLastFourTextView(lastFour: String) {
-        this.itemView.credit_card_last_four_digits.text = this.ksString.format(this.cardEndingInString, "last_four", lastFour)
+        binding.creditCardLastFourDigits.text = this.ksString.format(this.cardEndingInString, "last_four", lastFour)
     }
 
+    override fun destroy() {
+        disposables.clear()
+        super.destroy()
+    }
 }

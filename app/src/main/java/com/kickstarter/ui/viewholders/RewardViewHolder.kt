@@ -1,236 +1,285 @@
 package com.kickstarter.ui.viewholders
 
-import android.content.Intent
+import android.annotation.SuppressLint
 import android.util.Pair
 import android.view.View
-import androidx.annotation.NonNull
+import androidx.core.view.isGone
 import androidx.recyclerview.widget.LinearLayoutManager
-import com.jakewharton.rxbinding.view.RxView
 import com.kickstarter.R
-import com.kickstarter.libs.rx.transformers.Transformers.observeForUI
-import com.kickstarter.libs.utils.*
-import com.kickstarter.libs.utils.ObjectUtils.requireNonNull
-import com.kickstarter.libs.utils.TransitionUtils.slideInFromRight
-import com.kickstarter.libs.utils.TransitionUtils.transition
-import com.kickstarter.models.Project
+import com.kickstarter.databinding.ItemRewardBinding
+import com.kickstarter.libs.rx.transformers.Transformers.observeForUIV2
+import com.kickstarter.libs.utils.NumberUtils
+import com.kickstarter.libs.utils.RewardItemDecorator
+import com.kickstarter.libs.utils.RewardUtils
+import com.kickstarter.libs.utils.RewardViewUtils
+import com.kickstarter.libs.utils.ViewUtils
+import com.kickstarter.libs.utils.extensions.addToDisposable
+import com.kickstarter.libs.utils.extensions.isNotNull
+import com.kickstarter.libs.utils.extensions.isTrue
 import com.kickstarter.models.Reward
-import com.kickstarter.ui.IntentKey
-import com.kickstarter.ui.activities.BackingActivity
 import com.kickstarter.ui.adapters.RewardItemsAdapter
 import com.kickstarter.ui.data.ProjectData
 import com.kickstarter.viewmodels.RewardViewHolderViewModel
-import kotlinx.android.synthetic.main.item_reward.view.*
+import io.reactivex.android.schedulers.AndroidSchedulers
+import io.reactivex.disposables.CompositeDisposable
 
-class RewardViewHolder(private val view: View, val delegate: Delegate?, private val inset: Boolean = false) : KSViewHolder(view) {
+class RewardViewHolder(private val binding: ItemRewardBinding, val delegate: Delegate?, private val inset: Boolean = false) : KSViewHolder(binding.root) {
 
     interface Delegate {
         fun rewardClicked(reward: Reward)
     }
 
-    private val ksString = environment().ksString()
+    private val ksString = requireNotNull(environment().ksString())
     private var viewModel = RewardViewHolderViewModel.ViewModel(environment())
 
     private val currencyConversionString = context().getString(R.string.About_reward_amount)
     private val remainingRewardsString = context().getString(R.string.Left_count_left_few)
+    private val disposables = CompositeDisposable()
 
     init {
 
         val rewardItemAdapter = setUpRewardItemsAdapter()
 
         this.viewModel.outputs.conversionIsGone()
-                .compose(bindToLifecycle())
-                .compose(observeForUI())
-                .subscribe(ViewUtils.setGone(this.view.reward_conversion_text_view))
+            .compose(observeForUIV2())
+            .subscribe { this.binding.rewardConversionTextView.isGone = it }
+            .addToDisposable(disposables)
 
         this.viewModel.outputs.conversion()
-                .compose(bindToLifecycle())
-                .compose(observeForUI())
-                .subscribe { setConversionTextView(it) }
+            .compose(observeForUIV2())
+            .subscribe { setConversionTextView(it) }
+            .addToDisposable(disposables)
 
         this.viewModel.outputs.descriptionForNoReward()
-                .compose(bindToLifecycle())
-                .compose(observeForUI())
-                .subscribe { this.view.reward_description_text_view.setText(it) }
+            .compose(observeForUIV2())
+            .subscribe { this.binding.rewardDescriptionTextView.setText(it) }
+            .addToDisposable(disposables)
 
         this.viewModel.outputs.descriptionForReward()
-                .compose(bindToLifecycle())
-                .compose(observeForUI())
-                .subscribe { this.view.reward_description_text_view.text = it }
+            .compose(observeForUIV2())
+            .subscribe { this.binding.rewardDescriptionTextView.text = it }
+            .addToDisposable(disposables)
 
         this.viewModel.outputs.descriptionIsGone()
-                .compose(bindToLifecycle())
-                .compose(observeForUI())
-                .subscribe { ViewUtils.setGone(this.view.reward_description_container, it) }
+            .compose(observeForUIV2())
+            .subscribe { this.binding.rewardDescriptionContainer.isGone = it }
+            .addToDisposable(disposables)
 
         this.viewModel.outputs.buttonIsEnabled()
-                .compose(bindToLifecycle())
-                .compose(observeForUI())
-                .subscribe { this.view.reward_pledge_button.isEnabled = it }
+            .compose(observeForUIV2())
+            .subscribe { this.binding.rewardPledgeButton.isEnabled = it }
+            .addToDisposable(disposables)
 
         this.viewModel.outputs.remainingIsGone()
-                .compose(bindToLifecycle())
-                .compose(observeForUI())
-                .subscribe(ViewUtils.setGone(this.view.reward_remaining_text_view))
+            .compose(observeForUIV2())
+            .subscribe { this.binding.rewardRemainingTextView.isGone = it }
+            .addToDisposable(disposables)
 
         this.viewModel.outputs.limitContainerIsGone()
-                .compose(bindToLifecycle())
-                .compose(observeForUI())
-                .subscribe { ViewUtils.setGone(this.view.reward_limit_container, it) }
+            .compose(observeForUIV2())
+            .subscribe {
+                ViewUtils.setGone(this.binding.rewardLimitContainer, it)
+            }
+            .addToDisposable(disposables)
 
         this.viewModel.outputs.remaining()
-                .compose(bindToLifecycle())
-                .compose(observeForUI())
-                .subscribe { setRemainingRewardsTextView(it) }
+            .compose(observeForUIV2())
+            .subscribe { setRemainingRewardsTextView(it) }
+            .addToDisposable(disposables)
 
         this.viewModel.outputs.buttonCTA()
-                .compose(bindToLifecycle())
-                .compose(observeForUI())
-                .subscribe { this.view.reward_pledge_button.setText(it) }
+            .compose(observeForUIV2())
+            .subscribe { this.binding.rewardPledgeButton.setText(it) }
+            .addToDisposable(disposables)
 
         this.viewModel.outputs.shippingSummary()
-                .compose(bindToLifecycle())
-                .compose(observeForUI())
-                .subscribe { setShippingSummaryText(it) }
+            .compose(observeForUIV2())
+            .subscribe { setShippingSummaryText(it) }
+            .addToDisposable(disposables)
 
         this.viewModel.outputs.shippingSummaryIsGone()
-                .compose(bindToLifecycle())
-                .compose(observeForUI())
-                .subscribe { ViewUtils.setGone(this.view.reward_shipping_summary, it) }
+            .observeOn(AndroidSchedulers.mainThread())
+            .subscribe {
+                this.binding.rewardShippingSummary.isGone = it
+            }
+            .addToDisposable(disposables)
 
         this.viewModel.outputs.minimumAmountTitle()
-                .compose(bindToLifecycle())
-                .compose(observeForUI())
-                .subscribe { this.view.reward_minimum_text_view.text = it }
+            .compose(observeForUIV2())
+            .subscribe { this.binding.rewardMinimumTextView.text = it }
+            .addToDisposable(disposables)
 
         this.viewModel.outputs.reward()
-                .compose(bindToLifecycle())
-                .compose(observeForUI())
-                .subscribe { this.view.reward_ending_text_view.text = formattedExpirationString(it) }
+            .compose(observeForUIV2())
+            .subscribe { this.binding.rewardEndingTextView.text = formattedExpirationString(it) }
+            .addToDisposable(disposables)
 
         this.viewModel.outputs.endDateSectionIsGone()
-                .compose(bindToLifecycle())
-                .compose(observeForUI())
-                .subscribe { ViewUtils.setGone(this.view.reward_ending_text_view, it) }
+            .compose(observeForUIV2())
+            .subscribe { this.binding.rewardEndingTextView.isGone = it }
+            .addToDisposable(disposables)
 
         this.viewModel.outputs.rewardItems()
-                .compose(bindToLifecycle())
-                .compose(observeForUI())
-                .subscribe { rewardItemAdapter.rewardsItems(it) }
+            .compose(observeForUIV2())
+            .subscribe { rewardItemAdapter.rewardsItems(it) }
+            .addToDisposable(disposables)
 
         this.viewModel.outputs.rewardItemsAreGone()
-                .compose(bindToLifecycle())
-                .compose(observeForUI())
-                .subscribe(ViewUtils.setGone(this.view.rewards_item_section))
+            .compose(observeForUIV2())
+            .subscribe { this.binding.rewardsItemSection.isGone = it }
+            .addToDisposable(disposables)
 
         this.viewModel.outputs.titleForNoReward()
-                .compose(bindToLifecycle())
-                .compose(observeForUI())
-                .subscribe { this.view.reward_title_text_view.setText(it) }
+            .compose(observeForUIV2())
+            .subscribe { this.binding.rewardTitleTextView.setText(it) }
+            .addToDisposable(disposables)
 
         this.viewModel.outputs.titleForReward()
-                .compose(bindToLifecycle())
-                .compose(observeForUI())
-                .subscribe { this.view.reward_title_text_view.text = it }
+            .compose(observeForUIV2())
+            .subscribe { this.binding.rewardTitleTextView.text = it }
+            .addToDisposable(disposables)
 
         this.viewModel.outputs.titleIsGone()
-                .compose(bindToLifecycle())
-                .compose(observeForUI())
-                .subscribe { ViewUtils.setGone(this.view.reward_title_text_view, it) }
+            .compose(observeForUIV2())
+            .subscribe { this.binding.rewardTitleTextView.isGone = it }
+            .addToDisposable(disposables)
 
-        this.viewModel.outputs.showPledgeFragment()
-                .compose(bindToLifecycle())
-                .compose(observeForUI())
-                .subscribe { this.delegate?.rewardClicked(it.second) }
+        this.viewModel.outputs.showFragment()
+            .compose(observeForUIV2())
+            .subscribe { this.delegate?.rewardClicked(it.second) }
+            .addToDisposable(disposables)
 
         this.viewModel.outputs.buttonIsGone()
-                .compose(bindToLifecycle())
-                .compose(observeForUI())
-                .subscribe { setPledgeButtonVisibility(it) }
+            .compose(observeForUIV2())
+            .subscribe { setPledgeButtonVisibility(it) }
+            .addToDisposable(disposables)
 
         this.viewModel.outputs.backersCount()
-                .compose(bindToLifecycle())
-                .compose(observeForUI())
-                .subscribe { setBackersCountTextView(it) }
+            .compose(observeForUIV2())
+            .subscribe { setBackersCountTextView(it) }
+            .addToDisposable(disposables)
 
         this.viewModel.outputs.backersCountIsGone()
-                .compose(bindToLifecycle())
-                .compose(observeForUI())
-                .subscribe { ViewUtils.setGone(this.view.reward_backers_count, it) }
+            .compose(observeForUIV2())
+            .subscribe { this.binding.rewardBackersCount.isGone = it }
+            .addToDisposable(disposables)
 
         this.viewModel.outputs.estimatedDelivery()
-                .compose(bindToLifecycle())
-                .compose(observeForUI())
-                .subscribe { this.view.reward_estimated_delivery.text = it }
+            .compose(observeForUIV2())
+            .subscribe { this.binding.rewardEstimatedDelivery.text = it }
+            .addToDisposable(disposables)
 
         this.viewModel.outputs.estimatedDeliveryIsGone()
-                .compose(bindToLifecycle())
-                .compose(observeForUI())
-                .subscribe { ViewUtils.setGone(this.view.reward_estimated_delivery_section, it) }
+            .compose(observeForUIV2())
+            .subscribe { this.binding.rewardEstimatedDeliverySection.isGone = it }
+            .addToDisposable(disposables)
 
         this.viewModel.outputs.isMinimumPledgeAmountGone()
-                .compose(bindToLifecycle())
-                .compose(observeForUI())
-                .subscribe {
-                    ViewUtils.setGone(this.view.reward_conversion_text_view, it)
-                    ViewUtils.setGone(this.view.reward_minimum_text_view, it)
-                }
+            .compose(observeForUIV2())
+            .subscribe {
+                this.binding.rewardConversionTextView.isGone = it
+                this.binding.rewardMinimumTextView.isGone = it
+            }
+            .addToDisposable(disposables)
 
-        RxView.clicks(this.view.reward_pledge_button)
-                .compose(bindToLifecycle())
-                .subscribe { this.viewModel.inputs.rewardClicked(this.adapterPosition) }
+        this.binding.rewardPledgeButton.setOnClickListener {
+            this.viewModel.inputs.rewardClicked(this.adapterPosition)
+        }
+
+        this.viewModel.outputs.hasAddOnsAvailable()
+            .filter { it.isNotNull() }
+            .compose(observeForUIV2())
+            .subscribe {
+                this.binding.rewardAddOnsAvailable.isGone = !it
+            }
+            .addToDisposable(disposables)
+
+        this.viewModel.outputs.selectedRewardTagIsGone()
+            .compose(observeForUIV2())
+            .subscribe { isGone ->
+                if (!isGone) this.binding.rewardSelectedRewardTag.visibility = View.VISIBLE
+                else this.binding.rewardSelectedRewardTag.isGone = true
+            }
+            .addToDisposable(disposables)
+
+        this.viewModel.outputs.localPickUpIsGone()
+            .observeOn(AndroidSchedulers.mainThread())
+            .subscribe {
+                this.binding.localPickupContainer.localPickupGroup.isGone = it
+            }
+            .addToDisposable(disposables)
+
+        this.viewModel.outputs.localPickUpName()
+            .observeOn(AndroidSchedulers.mainThread())
+            .subscribe {
+                this.binding.localPickupContainer.localPickupLocation.text = it
+            }
+            .addToDisposable(disposables)
     }
 
     override fun bindData(data: Any?) {
         @Suppress("UNCHECKED_CAST")
-        val projectAndReward = requireNonNull(data as Pair<ProjectData, Reward>)
-        val projectTracking = requireNonNull(projectAndReward.first, ProjectData::class.java)
-        val reward = requireNonNull(projectAndReward.second, Reward::class.java)
+        val projectAndReward = requireNotNull(data as Pair<ProjectData, Reward>)
+        val projectTracking = requireNotNull(projectAndReward.first) { ProjectData::class.java.toString() + "   required to be non-null." }
+        val reward = requireNotNull(projectAndReward.second) { Reward::class.java.toString() + "   required to be non-null." }
 
         this.viewModel.inputs.configureWith(projectTracking, reward)
     }
 
-    private fun formattedExpirationString(@NonNull reward: Reward): String {
+    private fun formattedExpirationString(reward: Reward): String {
         val detail = RewardUtils.deadlineCountdownDetail(reward, context(), this.ksString)
         val value = RewardUtils.deadlineCountdownValue(reward)
         return "$value $detail"
     }
 
     private fun setBackersCountTextView(count: Int) {
-        val backersCountText = this.ksString.format("rewards_info_backer_count_backers", count,
-                "backer_count", NumberUtils.format(count))
-        this.view.reward_backers_count.text = backersCountText
+        val backersCountText = this.ksString.format(
+            "rewards_info_backer_count_backers", count,
+            "backer_count", NumberUtils.format(count)
+        )
+        this.binding.rewardBackersCount.text = backersCountText
     }
 
-    private fun setConversionTextView(@NonNull amount: String) {
-        this.view.reward_conversion_text_view.text = this.ksString.format(this.currencyConversionString,
-                "reward_amount", amount)
+    private fun setConversionTextView(amount: String) {
+        this.binding.rewardConversionTextView.text = this.ksString.format(
+            this.currencyConversionString,
+            "reward_amount", amount
+        )
     }
 
     private fun setPledgeButtonVisibility(gone: Boolean) {
-        if (BooleanUtils.isTrue(this.inset)) {
-            ViewUtils.setGone(this.view.reward_button_container, true)
-            ViewUtils.setGone(this.view.reward_button_placeholder, true)
+        if (this.inset.isTrue()) {
+            ViewUtils.setGone(this.binding.rewardButtonContainer, true)
+            ViewUtils.setGone(this.binding.rewardButtonPlaceholder, true)
         } else {
-            ViewUtils.setGone(this.view.reward_button_container, gone)
+            ViewUtils.setGone(this.binding.rewardButtonContainer, gone)
             when {
-                gone -> ViewUtils.setGone(this.view.reward_button_placeholder, true)
-                else -> ViewUtils.setInvisible(this.view.reward_button_placeholder, true)
+                gone -> ViewUtils.setGone(this.binding.rewardButtonPlaceholder, true)
+                else -> ViewUtils.setInvisible(this.binding.rewardButtonPlaceholder, true)
             }
         }
     }
 
-    private fun setRemainingRewardsTextView(@NonNull remaining: String) {
-        this.view.reward_remaining_text_view.text = this.ksString.format(this.remainingRewardsString,
-                "left_count", remaining)
+    private fun setRemainingRewardsTextView(remaining: Int) {
+        if (remaining > 0) {
+            this.binding.rewardRemainingTextView.isGone = false
+            this.binding.rewardRemainingTextView.text = this.ksString.format(
+                this.remainingRewardsString,
+                "left_count", NumberUtils.format(remaining)
+            )
+        } else {
+            this.binding.rewardRemainingTextView.isGone = true
+        }
     }
 
     private fun setShippingSummaryText(stringResAndLocationName: Pair<Int, String?>) {
-        this.view.reward_shipping_summary.text = RewardViewUtils.shippingSummary(context(), this.ksString, stringResAndLocationName)
+        this.binding.rewardShippingSummary.text = RewardViewUtils.shippingSummary(context(), this.ksString, stringResAndLocationName)
     }
 
+    @SuppressLint("UseCompatLoadingForDrawables")
     private fun setUpRewardItemsAdapter(): RewardItemsAdapter {
         val rewardItemAdapter = RewardItemsAdapter()
-        val itemRecyclerView = view.rewards_item_recycler_view
+        val itemRecyclerView = binding.rewardsItemRecyclerView
         itemRecyclerView.adapter = rewardItemAdapter
         itemRecyclerView.layoutManager = LinearLayoutManager(context())
         this.context().getDrawable(R.drawable.divider_grey_300_horizontal)?.let {
@@ -239,13 +288,8 @@ class RewardViewHolder(private val view: View, val delegate: Delegate?, private 
         return rewardItemAdapter
     }
 
-    private fun startBackingActivity(@NonNull project: Project) {
-        val context = context()
-        val intent = Intent(context, BackingActivity::class.java)
-                .putExtra(IntentKey.PROJECT, project)
-
-        context.startActivity(intent)
-        transition(context, slideInFromRight())
+    override fun destroy() {
+        viewModel.onCleared()
+        super.destroy()
     }
-
 }

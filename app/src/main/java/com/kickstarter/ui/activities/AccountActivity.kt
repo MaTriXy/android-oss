@@ -5,22 +5,25 @@ import android.os.Bundle
 import android.view.View
 import android.widget.AdapterView
 import android.widget.ArrayAdapter
+import androidx.activity.viewModels
 import androidx.appcompat.app.AlertDialog
+import androidx.appcompat.app.AppCompatActivity
 import com.kickstarter.R
-import com.kickstarter.extensions.showSnackbar
-import com.kickstarter.libs.BaseActivity
+import com.kickstarter.databinding.ActivityAccountBinding
 import com.kickstarter.libs.KSString
-import com.kickstarter.libs.qualifiers.RequiresActivityViewModel
-import com.kickstarter.libs.rx.transformers.Transformers.observeForUI
 import com.kickstarter.libs.utils.ViewUtils
+import com.kickstarter.libs.utils.extensions.addToDisposable
+import com.kickstarter.libs.utils.extensions.getEnvironment
+import com.kickstarter.libs.utils.extensions.getPaymentMethodsIntent
+import com.kickstarter.type.CurrencyCode
+import com.kickstarter.ui.extensions.setUpConnectivityStatusCheck
+import com.kickstarter.ui.extensions.showSnackbar
+import com.kickstarter.utils.WindowInsetsUtil
 import com.kickstarter.viewmodels.AccountViewModel
-import kotlinx.android.synthetic.main.account_toolbar.*
-import kotlinx.android.synthetic.main.activity_account.*
-import rx.android.schedulers.AndroidSchedulers
-import type.CurrencyCode
+import io.reactivex.android.schedulers.AndroidSchedulers
+import io.reactivex.disposables.CompositeDisposable
 
-@RequiresActivityViewModel(AccountViewModel.ViewModel::class)
-class AccountActivity : BaseActivity<AccountViewModel.ViewModel>() {
+class AccountActivity : AppCompatActivity() {
 
     private var currentCurrencySelection: CurrencyCode? = null
     private var newCurrencySelection: CurrencyCode? = null
@@ -28,78 +31,147 @@ class AccountActivity : BaseActivity<AccountViewModel.ViewModel>() {
 
     private lateinit var ksString: KSString
 
+    private lateinit var binding: ActivityAccountBinding
+
     private val supportedCurrencies: List<CurrencyCode> by lazy {
         arrayListOf(
-                CurrencyCode.AUD,
-                CurrencyCode.CAD,
-                CurrencyCode.CHF,
-                CurrencyCode.DKK,
-                CurrencyCode.EUR,
-                CurrencyCode.GBP,
-                CurrencyCode.HKD,
-                CurrencyCode.JPY,
-                CurrencyCode.MXN,
-                CurrencyCode.NOK,
-                CurrencyCode.NZD,
-                CurrencyCode.SEK,
-                CurrencyCode.SGD,
-                CurrencyCode.USD
+            CurrencyCode.AUD,
+            CurrencyCode.CAD,
+            CurrencyCode.CHF,
+            CurrencyCode.DKK,
+            CurrencyCode.EUR,
+            CurrencyCode.GBP,
+            CurrencyCode.HKD,
+            CurrencyCode.JPY,
+            CurrencyCode.MXN,
+            CurrencyCode.NOK,
+            CurrencyCode.PLN,
+            CurrencyCode.NZD,
+            CurrencyCode.SEK,
+            CurrencyCode.SGD,
+            CurrencyCode.USD
         )
     }
 
+    private lateinit var viewModelFactory: AccountViewModel.Factory
+    private val viewModel: AccountViewModel.AccountViewModel by viewModels { viewModelFactory }
+
+    private lateinit var disposables: CompositeDisposable
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_account)
+        disposables = CompositeDisposable()
 
-        this.ksString = environment().ksString()
+        val env = this.getEnvironment()?.let { env ->
+            viewModelFactory = AccountViewModel.Factory(env, intent = intent)
+            env
+        }
+
+        binding = ActivityAccountBinding.inflate(layoutInflater)
+        WindowInsetsUtil.manageEdgeToEdge(
+            window,
+            binding.root,
+        )
+        setContentView(binding.root)
+
+        setUpConnectivityStatusCheck(lifecycle)
+        this.ksString = requireNotNull(env?.ksString())
 
         setUpSpinner()
 
         this.viewModel.outputs.chosenCurrency()
-                .compose(bindToLifecycle())
-                .observeOn(AndroidSchedulers.mainThread())
-                .subscribe { setSpinnerSelection(it) }
+            .observeOn(AndroidSchedulers.mainThread())
+            .subscribe { setSpinnerSelection(it) }
+            .addToDisposable(disposables)
 
         this.viewModel.outputs.email()
-                .compose(bindToLifecycle())
-                .observeOn(AndroidSchedulers.mainThread())
-                .subscribe {
-                    create_password_text_view.text = this.ksString.format(getString(R.string.Youre_connected_via_Facebook_email_Create_a_password_for_this_account), "email", it)
-                }
+            .observeOn(AndroidSchedulers.mainThread())
+            .subscribe {
+                binding.createPasswordTextView.text = this.ksString.format(
+                    getString(R.string.Youre_connected_via_Facebook_email_Create_a_password_for_this_account),
+                    "email",
+                    it
+                )
+            }
+            .addToDisposable(disposables)
 
         this.viewModel.outputs.error()
-                .compose(bindToLifecycle())
-                .compose(observeForUI())
-                .subscribe { showSnackbar(account_toolbar, it) }
+            .observeOn(AndroidSchedulers.mainThread())
+            .subscribe { showSnackbar(binding.accountToolbar.accountToolbar, it) }
+            .addToDisposable(disposables)
 
         this.viewModel.outputs.progressBarIsVisible()
-                .compose(bindToLifecycle())
-                .compose(observeForUI())
-                .subscribe { ViewUtils.setGone(progress_bar, !it) }
+            .observeOn(AndroidSchedulers.mainThread())
+            .subscribe { ViewUtils.setGone(binding.progressBar, !it) }
+            .addToDisposable(disposables)
 
         this.viewModel.outputs.passwordRequiredContainerIsVisible()
-                .compose(bindToLifecycle())
-                .compose(observeForUI())
-                .subscribe {
-                    ViewUtils.setGone(create_password_container, it)
-                    ViewUtils.setGone(password_required_container, !it)
-                }
+            .observeOn(AndroidSchedulers.mainThread())
+            .subscribe {
+                ViewUtils.setGone(binding.createPasswordContainer, it)
+                ViewUtils.setGone(binding.passwordRequiredContainer, !it)
+            }
+            .addToDisposable(disposables)
 
         this.viewModel.outputs.showEmailErrorIcon()
-                .compose(bindToLifecycle())
-                .compose(observeForUI())
-                .subscribe { ViewUtils.setGone(email_error_icon, !it) }
+            .observeOn(AndroidSchedulers.mainThread())
+            .subscribe { ViewUtils.setGone(binding.emailErrorIcon, !it) }
+            .addToDisposable(disposables)
 
         this.viewModel.outputs.success()
-                .compose(bindToLifecycle())
-                .compose(observeForUI())
-                .subscribe { showSnackbar(account_container, R.string.Got_it_your_changes_have_been_saved) }
+            .observeOn(AndroidSchedulers.mainThread())
+            .subscribe {
+                showSnackbar(
+                    binding.accountContainer,
+                    R.string.Got_it_your_changes_have_been_saved
+                )
+            }
+            .addToDisposable(disposables)
 
-        create_password_row.setOnClickListener { startActivity(Intent(this, CreatePasswordActivity::class.java)) }
-        change_email_row.setOnClickListener { startActivity(Intent(this, ChangeEmailActivity::class.java)) }
-        change_password_row.setOnClickListener { startActivity(Intent(this, ChangePasswordActivity::class.java)) }
-        payment_methods_row.setOnClickListener { startActivity(Intent(this, PaymentMethodsSettingsActivity::class.java)) }
-        privacy_row.setOnClickListener { startActivity(Intent(this, PrivacyActivity::class.java)) }
+        binding.createPasswordRow.setOnClickListener {
+            startActivity(
+                Intent(
+                    this,
+                    CreatePasswordActivity::class.java
+                )
+            )
+        }
+        binding.changeEmailRow.setOnClickListener {
+            startActivity(
+                Intent(
+                    this,
+                    ChangeEmailActivity::class.java
+                )
+            )
+        }
+        binding.changePasswordRow.setOnClickListener {
+            startActivity(
+                Intent(
+                    this,
+                    ChangePasswordActivity::class.java
+                )
+            )
+        }
+        binding.paymentMethodsRow.setOnClickListener {
+            startActivity(
+                Intent().getPaymentMethodsIntent(
+                    this
+                )
+            )
+        }
+        binding.privacyRow.setOnClickListener {
+            startActivity(
+                Intent(
+                    this,
+                    PrivacyActivity::class.java
+                )
+            )
+        }
+    }
+
+    override fun onDestroy() {
+        disposables.clear()
+        super.onDestroy()
     }
 
     private fun getListOfCurrencies(): List<String> {
@@ -109,7 +181,7 @@ class AccountActivity : BaseActivity<AccountViewModel.ViewModel>() {
         }
         return strings
     }
-    
+
     private fun getStringForCurrencyCode(currency: CurrencyCode): String {
         return when (currency) {
             CurrencyCode.AUD -> getString(R.string.Currency_AUD)
@@ -123,27 +195,28 @@ class AccountActivity : BaseActivity<AccountViewModel.ViewModel>() {
             CurrencyCode.MXN -> getString(R.string.Currency_MXN)
             CurrencyCode.NOK -> getString(R.string.Currency_NOK)
             CurrencyCode.NZD -> getString(R.string.Currency_NZD)
+            CurrencyCode.PLN -> getString(R.string.Currency_PLN)
             CurrencyCode.SEK -> getString(R.string.Currency_SEK)
             CurrencyCode.SGD -> getString(R.string.Currency_SGD)
             CurrencyCode.USD -> getString(R.string.Currency_USD)
-            else -> currency.rawValue()
+            else -> currency.rawValue
         }
     }
 
     private fun lazyFollowingOptOutConfirmationDialog(): AlertDialog {
         if (this.showCurrencyChangeDialog == null) {
             this.showCurrencyChangeDialog = AlertDialog.Builder(this, R.style.AlertDialog)
-                    .setCancelable(false)
-                    .setTitle(getString(R.string.Change_currency))
-                    .setMessage(getString(R.string.Project_goal_and_pledge))
-                    .setNegativeButton(R.string.Cancel) { _, _ ->
-                        setSpinnerSelection(currentCurrencySelection!!.rawValue())
-                    }
-                    .setPositiveButton(R.string.Yes_change_currency) { _, _ ->
-                        this.viewModel.inputs.onSelectedCurrency(newCurrencySelection!!)
-                        setSpinnerSelection(newCurrencySelection!!.rawValue())
-                    }
-                    .create()
+                .setCancelable(false)
+                .setTitle(getString(R.string.Change_currency))
+                .setMessage(getString(R.string.Project_goal_and_pledge))
+                .setNegativeButton(R.string.Cancel) { _, _ ->
+                    setSpinnerSelection(currentCurrencySelection!!.rawValue)
+                }
+                .setPositiveButton(R.string.Yes_change_currency) { _, _ ->
+                    this.viewModel.inputs.onSelectedCurrency(newCurrencySelection!!)
+                    setSpinnerSelection(newCurrencySelection!!.rawValue)
+                }
+                .create()
         }
         return this.showCurrencyChangeDialog!!
     }
@@ -151,26 +224,31 @@ class AccountActivity : BaseActivity<AccountViewModel.ViewModel>() {
     private fun setSpinnerSelection(currencyCode: String) {
         val selectedCurrencyCode = CurrencyCode.safeValueOf(currencyCode)
         currentCurrencySelection = selectedCurrencyCode
-        currency_spinner.setSelection(supportedCurrencies.indexOf(selectedCurrencyCode))
+        binding.currencySpinner.setSelection(supportedCurrencies.indexOf(selectedCurrencyCode))
     }
 
     private fun setUpSpinner() {
         val arrayAdapter = ArrayAdapter<String>(this, R.layout.item_spinner, getListOfCurrencies())
         arrayAdapter.setDropDownViewResource(R.layout.item_spinner_dropdown)
-        currency_spinner.adapter = arrayAdapter
+        binding.currencySpinner.adapter = arrayAdapter
 
-        currency_spinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
-            override fun onNothingSelected(parent: AdapterView<*>?) {}
+        binding.currencySpinner.onItemSelectedListener =
+            object : AdapterView.OnItemSelectedListener {
+                override fun onNothingSelected(parent: AdapterView<*>?) {}
 
-            override fun onItemSelected(parent: AdapterView<*>?, view: View?, postion: Int, id: Long) {
-                currentCurrencySelection?.let {
-                    if (supportedCurrencies.indexOf(it) != postion) {
-                        newCurrencySelection = supportedCurrencies[postion]
-                        lazyFollowingOptOutConfirmationDialog().show()
+                override fun onItemSelected(
+                    parent: AdapterView<*>?,
+                    view: View?,
+                    postion: Int,
+                    id: Long
+                ) {
+                    currentCurrencySelection?.let {
+                        if (supportedCurrencies.indexOf(it) != postion) {
+                            newCurrencySelection = supportedCurrencies[postion]
+                            lazyFollowingOptOutConfirmationDialog().show()
+                        }
                     }
                 }
             }
-        }
     }
-
 }

@@ -1,19 +1,28 @@
 package com.kickstarter.ui.adapters
 
+import android.annotation.SuppressLint
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import androidx.annotation.LayoutRes
-import androidx.annotation.NonNull
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
-import com.crashlytics.android.Crashlytics
+import com.google.firebase.crashlytics.FirebaseCrashlytics
 import com.kickstarter.BuildConfig
 import com.kickstarter.libs.utils.ExceptionUtils
 import com.kickstarter.ui.viewholders.KSViewHolder
-import com.trello.rxlifecycle.ActivityEvent
+import java.util.ArrayList
 
-abstract class KSListAdapter(diffUtil: DiffUtil.ItemCallback<Any>) : ListAdapter<Any, KSViewHolder>(diffUtil) {
+abstract class KSListAdapter(
+    diffUtil: DiffUtil.ItemCallback<Any> = object : DiffUtil.ItemCallback<Any>() {
+        override fun areItemsTheSame(oldItem: Any, newItem: Any) = oldItem == newItem
+
+        @SuppressLint("DiffUtilEquals")
+        override fun areContentsTheSame(oldItem: Any, newItem: Any) = oldItem == newItem
+
+        override fun getChangePayload(oldItem: Any, newItem: Any) = false
+    }
+) : ListAdapter<Any, KSViewHolder>(diffUtil) {
     private val sections = ArrayList<List<Any>>()
 
     fun sections(): List<List<Any>> {
@@ -54,40 +63,23 @@ abstract class KSListAdapter(diffUtil: DiffUtil.ItemCallback<Any>) : ListAdapter
     /**
      * Fetch the layout id associated with a sectionRow.
      */
-    protected abstract fun layout(@NonNull sectionRow: SectionRow): Int
+    protected abstract fun layout(sectionRow: SectionRow?): Int
 
     /**
      * Returns a new KSViewHolder given a layout and view.
      */
-    protected abstract fun viewHolder(@LayoutRes layout: Int, view: View): KSViewHolder
+    protected abstract fun viewHolder(@LayoutRes layout: Int, view: ViewGroup): KSViewHolder
 
     override fun onViewDetachedFromWindow(holder: KSViewHolder) {
         super.onViewDetachedFromWindow(holder)
 
-        // View holders are "stopped" when they are detached from the window for recycling
-        holder.lifecycleEvent(ActivityEvent.STOP)
-
-        // View holders are "destroy" when they are detached from the window and no adapter is listening
-        // to events, so ostensibly the view holder is being deallocated.
         if (!hasObservers()) {
-            holder.lifecycleEvent(ActivityEvent.DESTROY)
+            holder.destroy()
         }
     }
 
-    override fun onViewAttachedToWindow(holder: KSViewHolder) {
-        super.onViewAttachedToWindow(holder)
-
-        // View holders are "started" when they are attached to the new window because this means
-        // it has been recycled.
-        holder.lifecycleEvent(ActivityEvent.START)
-    }
-
     override fun onCreateViewHolder(viewGroup: ViewGroup, @LayoutRes layout: Int): KSViewHolder {
-        val view = inflateView(viewGroup, layout)
-        val viewHolder = viewHolder(layout, view)
-
-        viewHolder.lifecycleEvent(ActivityEvent.CREATE)
-
+        val viewHolder = viewHolder(layout, viewGroup)
         return viewHolder
     }
 
@@ -95,16 +87,18 @@ abstract class KSListAdapter(diffUtil: DiffUtil.ItemCallback<Any>) : ListAdapter
         val data = objectFromPosition(position)
 
         try {
-            viewHolder.bindData(data)
+            data?.let {
+                viewHolder.bindData(data)
+            }
         } catch (e: Exception) {
             if (BuildConfig.DEBUG) {
                 ExceptionUtils.rethrowAsRuntimeException(e)
             } else {
                 // TODO: alter the exception message to say we are just reporting it and it's not a real crash.
-                Crashlytics.logException(e)
+                FirebaseCrashlytics.getInstance().setCustomKey("KSListAdapter", this::class.java.simpleName)
+                FirebaseCrashlytics.getInstance().recordException(e)
             }
         }
-
     }
 
     override fun getItemViewType(position: Int): Int {
@@ -131,11 +125,14 @@ abstract class KSListAdapter(diffUtil: DiffUtil.ItemCallback<Any>) : ListAdapter
     /**
      * Gets the data object associated with a position.
      */
-    protected fun objectFromPosition(position: Int): Any {
-        return objectFromSectionRow(sectionRowFromPosition(position))
+    protected fun objectFromPosition(position: Int): Any? {
+        sectionRowFromPosition(position)?.let {
+            return objectFromSectionRow(it)
+        }
+        return null
     }
 
-    private fun sectionRowFromPosition(position: Int): SectionRow {
+    private fun sectionRowFromPosition(position: Int): SectionRow? {
         val sectionRow = SectionRow()
         var cursor = 0
         for (section in this.sections) {
@@ -148,8 +145,7 @@ abstract class KSListAdapter(diffUtil: DiffUtil.ItemCallback<Any>) : ListAdapter
             }
             sectionRow.nextSection()
         }
-
-        throw RuntimeException("Position $position not found in sections")
+        return null
     }
 
     private fun inflateView(viewGroup: ViewGroup, @LayoutRes viewType: Int): View {

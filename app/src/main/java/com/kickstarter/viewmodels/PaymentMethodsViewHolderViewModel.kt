@@ -1,16 +1,15 @@
 package com.kickstarter.viewmodels
 
-import com.kickstarter.libs.ActivityViewModel
-import com.kickstarter.libs.Environment
-import com.kickstarter.libs.rx.transformers.Transformers.takeWhen
+import com.kickstarter.libs.rx.transformers.Transformers.takeWhenV2
+import com.kickstarter.libs.utils.extensions.isNotNull
 import com.kickstarter.models.StoredCard
-import com.kickstarter.ui.viewholders.PaymentMethodsViewHolder
+import com.kickstarter.models.extensions.getCardTypeDrawable
 import com.stripe.android.model.Card
-import rx.Observable
-import rx.subjects.BehaviorSubject
-import rx.subjects.PublishSubject
+import io.reactivex.Observable
+import io.reactivex.subjects.BehaviorSubject
+import io.reactivex.subjects.PublishSubject
 import java.text.SimpleDateFormat
-import java.util.*
+import java.util.Locale
 
 interface PaymentMethodsViewHolderViewModel {
 
@@ -39,10 +38,10 @@ interface PaymentMethodsViewHolderViewModel {
         fun lastFour(): Observable<String>
     }
 
-    class ViewModel(environment: Environment) : ActivityViewModel<PaymentMethodsViewHolder>(environment), Inputs, Outputs {
+    class PaymentMethodsViewHolderViewModel : Inputs, Outputs {
 
         private val card = PublishSubject.create<StoredCard>()
-        private val deleteCardClick = PublishSubject.create<Void>()
+        private val deleteCardClick = PublishSubject.create<Unit>()
 
         private val expirationDate = BehaviorSubject.create<String>()
         private val id = BehaviorSubject.create<String>()
@@ -57,33 +56,34 @@ interface PaymentMethodsViewHolderViewModel {
 
         init {
             this.card
-                    .map { it.expiration() }
-                    .map { sdf.format(it).toString() }
-                    .subscribe(this.expirationDate)
+                .map { it.expiration() }
+                .filter { it.isNotNull() }
+                .map { sdf.format(it).toString() }
+                .subscribe(this.expirationDate)
 
             this.card
-                    .map { it.id() }
-                    .compose<String>(takeWhen(this.deleteCardClick))
-                    .subscribe(this.id)
+                .map { it.id() }
+                .compose<String>(takeWhenV2(this.deleteCardClick))
+                .subscribe(this.id)
 
             this.card
-                    .map { it.lastFourDigits() }
-                    .subscribe(this.lastFour)
+                .map { it.lastFourDigits() }
+                .subscribe(this.lastFour)
 
             this.card
-                    .map { it.type() }
-                    .map { StoredCard.getCardTypeDrawable(it) }
-                    .subscribe(this.issuerImage)
+                .map { it.getCardTypeDrawable() }
+                .subscribe(this.issuerImage)
 
             this.card
-                    .map { it.type() }
-                    .map { StoredCard.issuer(it) }
-                    .subscribe(this.issuer)
+                .map { it.type() }
+                .filter { it.isNotNull() }
+                .map { StoredCard.issuer(it) }
+                .subscribe(this.issuer)
         }
 
         override fun card(creditCard: StoredCard) = this.card.onNext(creditCard)
 
-        override fun deleteIconClicked() = this.deleteCardClick.onNext(null)
+        override fun deleteIconClicked() = this.deleteCardClick.onNext(Unit)
 
         override fun issuer(): Observable<String> = this.issuer
 

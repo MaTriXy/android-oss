@@ -1,169 +1,69 @@
 package com.kickstarter.viewmodels
 
-import UpdateUserPasswordMutation
-import androidx.annotation.NonNull
-import com.kickstarter.R
-import com.kickstarter.libs.ActivityViewModel
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewModelScope
 import com.kickstarter.libs.Environment
-import com.kickstarter.libs.rx.transformers.Transformers.*
-import com.kickstarter.libs.utils.StringUtils.MINIMUM_PASSWORD_LENGTH
-import com.kickstarter.services.ApolloClientType
-import com.kickstarter.ui.activities.ChangePasswordActivity
-import rx.Observable
-import rx.subjects.BehaviorSubject
-import rx.subjects.PublishSubject
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted.Companion.WhileSubscribed
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onStart
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.rx2.asFlow
 
+data class UpdatePasswordUIState(
+    val isLoading: Boolean = false,
+    val errorMessage: String? = null,
+    val email: String? = null
+)
+class ChangePasswordViewModel(val environment: Environment) : ViewModel() {
 
-interface ChangePasswordViewModel {
+    private val apolloClient = requireNotNull(this.environment.apolloClientV2())
+    private val analytics = requireNotNull(this.environment.analytics())
 
-    interface Inputs {
-        /** Call when the user clicks the change password button. */
-        fun changePasswordClicked()
+    private val mutableUIState = MutableStateFlow(UpdatePasswordUIState())
+    val uiState: StateFlow<UpdatePasswordUIState> get() =
+        mutableUIState.asStateFlow()
+            .stateIn(
+                scope = viewModelScope,
+                started = WhileSubscribed(),
+                initialValue = UpdatePasswordUIState(isLoading = true)
+            )
 
-        /** Call when the current password field changes.  */
-        fun confirmPassword(confirmPassword: String)
-
-        /** Call when the current password field changes.  */
-        fun currentPassword(currentPassword: String)
-
-        /** Call when the new password field changes.  */
-        fun newPassword(newPassword: String)
+    fun updatePassword(oldPassword: String, newPassword: String) {
+        viewModelScope.launch {
+            // TODO: Avoid using GraphQL generated types such as UpdateUserPasswordMutation.Data, return data model defined within the app.
+            apolloClient.updateUserPassword(oldPassword, newPassword, newPassword)
+                .asFlow()
+                .onStart {
+                    mutableUIState.emit(UpdatePasswordUIState(isLoading = true))
+                }
+                .map {
+                    analytics.reset()
+                    mutableUIState.emit(UpdatePasswordUIState(isLoading = false, email = it.updateUserAccount?.user?.email ?: ""))
+                }
+                .catch {
+                    mutableUIState.emit(UpdatePasswordUIState(errorMessage = it.message ?: "", isLoading = false))
+                }
+                .collect()
+        }
     }
 
-    interface Outputs {
-        /** Emits when the password update was unsuccessful. */
-        fun error(): Observable<String>
-
-        /** Emits a string resource to display when the user's new password entries are invalid. */
-        fun passwordWarning(): Observable<Int>
-
-        /** Emits when the progress bar should be visible. */
-        fun progressBarIsVisible(): Observable<Boolean>
-
-        /** Emits when the save button should be enabled. */
-        fun saveButtonIsEnabled(): Observable<Boolean>
-
-        /** Emits when the password update was unsuccessful. */
-        fun success(): Observable<String>
+    fun resetError() {
+        viewModelScope.launch {
+            mutableUIState.emit(UpdatePasswordUIState(errorMessage = null))
+        }
     }
+}
 
-    class ViewModel(@NonNull val environment: Environment) : ActivityViewModel<ChangePasswordActivity>(environment), Inputs, Outputs {
-
-        private val changePasswordClicked = PublishSubject.create<Void>()
-        private val confirmPassword = PublishSubject.create<String>()
-        private val currentPassword = PublishSubject.create<String>()
-        private val newPassword = PublishSubject.create<String>()
-
-        private val error = BehaviorSubject.create<String>()
-        private val passwordWarning = BehaviorSubject.create<Int>()
-        private val progressBarIsVisible = BehaviorSubject.create<Boolean>()
-        private val saveButtonIsEnabled = BehaviorSubject.create<Boolean>()
-        private val success = BehaviorSubject.create<String>()
-
-        val inputs: ChangePasswordViewModel.Inputs = this
-        val outputs: ChangePasswordViewModel.Outputs = this
-
-        private val apolloClient: ApolloClientType = this.environment.apolloClient()
-
-        init {
-
-            val changePassword = Observable.combineLatest(this.currentPassword.startWith(""),
-                    this.newPassword.startWith(""),
-                    this.confirmPassword.startWith(""),
-                    { current, new, confirm -> ChangePassword(current, new, confirm) })
-
-            changePassword
-                    .map { it.warning() }
-                    .distinctUntilChanged()
-                    .compose(bindToLifecycle())
-                    .subscribe(this.passwordWarning)
-
-            changePassword
-                    .map { it.isValid() }
-                    .distinctUntilChanged()
-                    .compose(bindToLifecycle())
-                    .subscribe(this.saveButtonIsEnabled)
-
-            val changePasswordNotification = changePassword
-                    .compose(takeWhen<ChangePassword, Void>(this.changePasswordClicked))
-                    .switchMap { cp -> submit(cp).materialize() }
-                    .compose(bindToLifecycle())
-                    .share()
-
-            changePasswordNotification
-                    .compose(errors())
-                    .subscribe({ this.error.onNext(it.localizedMessage) })
-
-            changePasswordNotification
-                    .compose(values())
-                    .map { it.updateUserAccount()?.user()?.email() }
-                    .subscribe {
-                        this.success.onNext(it)
-                        this.koala.trackChangedPassword()
-                    }
-
-            this.koala.trackViewedChangedPassword()
-        }
-
-        private fun submit(changePassword: ChangePasswordViewModel.ViewModel.ChangePassword): Observable<UpdateUserPasswordMutation.Data> {
-            return this.apolloClient.updateUserPassword(changePassword.currentPassword, changePassword.newPassword, changePassword.confirmPassword)
-                    .doOnSubscribe { this.progressBarIsVisible.onNext(true) }
-                    .doAfterTerminate { this.progressBarIsVisible.onNext(false) }
-        }
-
-        override fun changePasswordClicked() {
-            this.changePasswordClicked.onNext(null)
-        }
-
-        override fun confirmPassword(confirmPassword: String) {
-            this.confirmPassword.onNext(confirmPassword)
-        }
-
-        override fun currentPassword(currentPassword: String) {
-            this.currentPassword.onNext(currentPassword)
-        }
-
-        override fun newPassword(newPassword: String) {
-            this.newPassword.onNext(newPassword)
-        }
-
-        override fun error(): Observable<String> {
-            return this.error
-        }
-
-        override fun passwordWarning(): Observable<Int> {
-            return this.passwordWarning
-        }
-
-        override fun progressBarIsVisible(): Observable<Boolean> {
-            return this.progressBarIsVisible
-        }
-
-        override fun saveButtonIsEnabled(): Observable<Boolean> {
-            return this.saveButtonIsEnabled
-        }
-
-        override fun success(): Observable<String> {
-            return this.success
-        }
-
-        data class ChangePassword(val currentPassword: String, val newPassword: String, val confirmPassword: String) {
-            fun isValid(): Boolean {
-                return isNotEmptyAndAtLeast6Chars(this.currentPassword)
-                        && isNotEmptyAndAtLeast6Chars(this.newPassword)
-                        && isNotEmptyAndAtLeast6Chars(this.confirmPassword)
-                        && this.confirmPassword == this.newPassword
-            }
-
-            fun warning(): Int? {
-                return if (newPassword.isNotEmpty() && newPassword.length in 1 until MINIMUM_PASSWORD_LENGTH)
-                    R.string.Password_min_length_message
-                else if (confirmPassword.isNotEmpty() && confirmPassword != newPassword)
-                    R.string.Passwords_matching_message
-                else null
-            }
-
-            private fun isNotEmptyAndAtLeast6Chars(password: String) = !password.isEmpty() && password.length >= MINIMUM_PASSWORD_LENGTH
-        }
+class ChangePasswordViewModelFactory(private val environment: Environment) :
+    ViewModelProvider.Factory {
+    override fun <T : ViewModel> create(modelClass: Class<T>): T {
+        return ChangePasswordViewModel(environment) as T
     }
 }

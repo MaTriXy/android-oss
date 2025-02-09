@@ -27,11 +27,7 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
 import com.kickstarter.R;
-import com.kickstarter.libs.ApiCapabilities;
-import com.kickstarter.ui.views.AppRatingDialog;
 import com.kickstarter.ui.views.ConfirmDialog;
-
-import rx.functions.Action1;
 
 public final class ViewUtils {
   private ViewUtils() {}
@@ -69,11 +65,7 @@ public final class ViewUtils {
    *
    */
   public static Spanned html(final @NonNull String htmlString) {
-    if (ApiCapabilities.needsLegacyHtml()) {
-      return Html.fromHtml(htmlString);
-    } else {
-      return Html.fromHtml(htmlString, Html.FROM_HTML_MODE_COMPACT);
-    }
+    return Html.fromHtml(htmlString, Html.FROM_HTML_MODE_COMPACT);
   }
 
   public static boolean isFontScaleLarge(final @NonNull Context context) {
@@ -118,10 +110,6 @@ public final class ViewUtils {
   public static void showDialog(final @NonNull Context context, final @Nullable String title,
     final @NonNull String message, final @NonNull String buttonMessage) {
     new ConfirmDialog(context, title, message, buttonMessage).show();
-  }
-
-  public static void showRatingDialog(final @NonNull Context context) {
-    new AppRatingDialog(context).show();
   }
 
   /**
@@ -172,14 +160,11 @@ public final class ViewUtils {
     toast.show();
   }
 
-  public static Action1<String> showToast(final @NonNull Context context) {
-    return (message) -> showToast(context, message);
-  }
-
   /**
-   * Sets the visiblity of a view to {@link View#VISIBLE} or {@link View#GONE}. Setting
+   *  @deprecated Sets the visiblity of a view to {@link View#VISIBLE} or {@link View#GONE}. Setting
    * the view to GONE removes it from the layout so that it no longer takes up any space.
    */
+  @Deprecated
   public static void setGone(final @NonNull View view, final boolean gone) {
     if (gone) {
       view.setVisibility(View.GONE);
@@ -188,23 +173,16 @@ public final class ViewUtils {
     }
   }
 
-  public static Action1<Boolean> setGone(final @NonNull View view) {
-    return (gone) -> setGone(view, gone);
-  }
-
   /**
-   * Sets the visibility of a view to {@link View#VISIBLE} or {@link View#INVISIBLE}. Setting
+   *  @deprecated Sets the visibility of a view to {@link View#VISIBLE} or {@link View#INVISIBLE}. Setting
    * the view to INVISIBLE makes it hidden, but it still takes up space.
    */
+  @Deprecated
   public static void setInvisible(final @NonNull View view, final boolean hidden) {
     if (hidden) {
       view.setVisibility(View.INVISIBLE);
     } else {
       view.setVisibility(View.VISIBLE);
     }
-  }
-
-  public static Action1<Boolean> setInvisible(final @NonNull View view) {
-    return (invisible) -> setInvisible(view, invisible);
   }
 }

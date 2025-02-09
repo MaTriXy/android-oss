@@ -1,115 +1,171 @@
 package com.kickstarter.ui.fragments
 
 import android.os.Bundle
+import android.util.Pair
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.appcompat.app.AlertDialog
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.platform.ViewCompositionStrategy
+import androidx.fragment.app.Fragment
+import androidx.fragment.app.viewModels
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.kickstarter.R
-import com.kickstarter.libs.BaseFragment
-import com.kickstarter.libs.qualifiers.RequiresFragmentViewModel
-import com.kickstarter.libs.rx.transformers.Transformers.observeForUI
-import com.kickstarter.libs.utils.NumberUtils
-import com.kickstarter.libs.utils.RewardDecoration
-import com.kickstarter.libs.utils.ViewUtils
-import com.kickstarter.models.Reward
-import com.kickstarter.ui.adapters.RewardsAdapter
+import com.kickstarter.databinding.FragmentRewardsBinding
+import com.kickstarter.libs.Environment
+import com.kickstarter.libs.utils.extensions.getEnvironment
+import com.kickstarter.libs.utils.extensions.reduce
+import com.kickstarter.ui.activities.compose.projectpage.RewardCarouselScreen
+import com.kickstarter.ui.compose.designsystem.KSTheme
+import com.kickstarter.ui.compose.designsystem.KickstarterApp
 import com.kickstarter.ui.data.PledgeData
 import com.kickstarter.ui.data.PledgeReason
 import com.kickstarter.ui.data.ProjectData
-import com.kickstarter.viewmodels.RewardsFragmentViewModel
-import kotlinx.android.synthetic.main.fragment_rewards.*
+import com.kickstarter.viewmodels.projectpage.RewardsSelectionViewModel
 
-@RequiresFragmentViewModel(RewardsFragmentViewModel.ViewModel::class)
-class RewardsFragment : BaseFragment<RewardsFragmentViewModel.ViewModel>(), RewardsAdapter.Delegate {
+class RewardsFragment : Fragment() {
 
-    private var rewardsAdapter = RewardsAdapter(this)
+    private lateinit var dialog: AlertDialog
+    private var binding: FragmentRewardsBinding? = null
+
+    private lateinit var rewardsSelectionViewModelFactory: RewardsSelectionViewModel.Factory
+    private val viewModel: RewardsSelectionViewModel by viewModels { rewardsSelectionViewModelFactory }
+
+    private lateinit var environment: Environment
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {
         super.onCreateView(inflater, container, savedInstanceState)
-        return inflater.inflate(R.layout.fragment_rewards, container, false)
+
+        this.context?.getEnvironment()?.let { env ->
+            environment = env
+            rewardsSelectionViewModelFactory = RewardsSelectionViewModel.Factory(env)
+        }
+
+        super.onCreateView(inflater, container, savedInstanceState)
+        binding = FragmentRewardsBinding.inflate(inflater, container, false)
+        return binding?.root
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        setupRecyclerView()
+        createDialog()
 
-        this.viewModel.outputs.projectData()
-                .compose(bindToLifecycle())
-                .compose(observeForUI())
-                .subscribe { rewardsAdapter.populateRewards(it) }
+        binding?.composeView?.apply {
+            // Dispose of the Composition when the view's LifecycleOwner is destroyed
+            setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
+            // Compose world
+            setContent {
+                KickstarterApp(
+                    useDarkTheme = true
+                ) {
+                    KSTheme {
 
-        this.viewModel.outputs.backedRewardPosition()
-                .compose(bindToLifecycle())
-                .compose(observeForUI())
-                .subscribe { scrollToReward(it) }
+                        val rewardSelectionUIState by viewModel.rewardSelectionUIState.collectAsStateWithLifecycle()
+                        val shippingUIState by viewModel.shippingUIState.collectAsStateWithLifecycle()
+                        val projectData = rewardSelectionUIState.project
+                        val indexOfBackedReward = rewardSelectionUIState.initialRewardIndex
+                        val rewards = shippingUIState.filteredRw
+                        val project = projectData.project()
+                        val backing = projectData.backing()
 
-        this.viewModel.outputs.showPledgeFragment()
-                .compose(bindToLifecycle())
-                .compose(observeForUI())
-                .subscribe { showPledgeFragment(it.first, it.second) }
+                        val rewardLoading = shippingUIState.loading
+                        val currentUserShippingRule = shippingUIState.selectedShippingRule
+                        val shippingRules = shippingUIState.shippingRules
 
-        this.viewModel.outputs.rewardsCount()
-                .compose(bindToLifecycle())
-                .compose(observeForUI())
-                .subscribe { setRewardsCount(it) }
+                        val listState = rememberLazyListState(
+                            initialFirstVisibleItemIndex = indexOfBackedReward
+                        )
+                        RewardCarouselScreen(
+                            lazyRowState = listState,
+                            environment = environment,
+                            rewards = rewards,
+                            project = project,
+                            backing = backing,
+                            onRewardSelected = {
+                                viewModel.onUserRewardSelection(it)
+                            },
+                            countryList = shippingRules,
+                            onShippingRuleSelected = { shippingRule ->
+                                viewModel.selectedShippingRule(shippingRule)
+                            },
+                            currentShippingRule = currentUserShippingRule,
+                            isLoading = rewardLoading
+                        )
 
-        context?.apply {
-            ViewUtils.setGone(rewards_count, ViewUtils.isLandscape(this))
+                        LaunchedEffect(Unit) {
+                            viewModel.flowUIRequest.collect {
+                                viewModel.getPledgeData()?.let {
+                                    if (viewModel.shouldShowAlert()) {
+                                        showDialog()
+                                    } else {
+                                        showAddonsFragment(it)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 
-    private fun scrollToReward(position: Int) {
-        if (position != 0) {
-            val recyclerWidth = (rewards_recycler?.width ?: 0)
-            val linearLayoutManager = rewards_recycler?.layoutManager as LinearLayoutManager
-            val rewardWidth = resources.getDimensionPixelSize(R.dimen.item_reward_width)
-            val rewardMargin = resources.getDimensionPixelSize(R.dimen.reward_margin)
-            val center = (recyclerWidth - rewardWidth - rewardMargin) / 2
-            linearLayoutManager.scrollToPositionWithOffset(position, center)
+    private fun createDialog() {
+        context?.let { context ->
+            dialog = AlertDialog.Builder(context, R.style.AlertDialog)
+                .setCancelable(false)
+                .setTitle(getString(R.string.Continue_with_this_reward))
+                .setMessage(getString(R.string.It_may_not_offer_some_or_all_of_your_add_ons))
+                .setNegativeButton(getString(R.string.No_go_back)) { _, _ -> {} }
+                .setPositiveButton(getString(R.string.Yes_continue)) { _, _ ->
+                    viewModel.getPledgeData()?.let { showAddonsFragment(it) }
+                }.create()
         }
     }
 
-    private fun setRewardsCount(count: Int) {
-        val rewardsCountString = this.viewModel.environment.ksString().format("Rewards_count_rewards", count,
-                "rewards_count", NumberUtils.format(count))
-        rewards_count.text = rewardsCountString
+    private fun showDialog() {
+        if (this.isVisible)
+            dialog.show()
     }
 
-    override fun onDetach() {
-        super.onDetach()
-        rewards_recycler?.adapter = null
+    private fun showAddonsFragment(pledgeDataAndReason: kotlin.Pair<PledgeData, PledgeReason>) {
+        if (this.isVisible && this.parentFragmentManager.findFragmentByTag(BackingAddOnsFragment::class.java.simpleName) == null) {
+
+            val reducedProject = pledgeDataAndReason.first.projectData().project().reduce()
+
+            val reducedProjectData =
+                pledgeDataAndReason.first.projectData().toBuilder().project(reducedProject).build()
+            val reducedPledgeData =
+                pledgeDataAndReason.first.toBuilder().projectData(reducedProjectData).build()
+
+            val addOnsFragment = BackingAddOnsFragment.newInstance(
+                Pair(
+                    reducedPledgeData,
+                    pledgeDataAndReason.second
+                )
+            )
+
+            this.parentFragmentManager.beginTransaction()
+                .setCustomAnimations(R.anim.slide_in_right, 0, 0, R.anim.slide_out_right)
+                .add(
+                    R.id.fragment_container,
+                    addOnsFragment,
+                    BackingAddOnsFragment::class.java.simpleName
+                )
+                .addToBackStack(BackingAddOnsFragment::class.java.simpleName)
+                .commit()
+        }
     }
 
-    override fun rewardClicked(reward: Reward) {
-        this.viewModel.inputs.rewardClicked(reward)
+    fun setState(state: Boolean?) {
+        state?.let {
+            viewModel.sendEvent(expanded = it)
+        }
     }
 
     fun configureWith(projectData: ProjectData) {
-        this.viewModel.inputs.configureWith(projectData)
-    }
-
-    private fun addItemDecorator() {
-        val margin = resources.getDimension(R.dimen.reward_margin).toInt()
-        rewards_recycler.addItemDecoration(RewardDecoration(margin))
-    }
-
-    private fun setupRecyclerView() {
-        rewards_recycler.layoutManager = LinearLayoutManager(context, LinearLayoutManager.HORIZONTAL, false)
-        rewards_recycler.adapter = rewardsAdapter
-        addItemDecorator()
-    }
-
-    private fun showPledgeFragment(pledgeData: PledgeData, pledgeReason: PledgeReason) {
-        if (this.fragmentManager?.findFragmentByTag(PledgeFragment::class.java.simpleName) == null) {
-            val pledgeFragment = PledgeFragment.newInstance(pledgeData, pledgeReason)
-            this.fragmentManager?.beginTransaction()
-                    ?.setCustomAnimations(R.anim.slide_in_right, 0, 0, R.anim.slide_out_right)
-                    ?.add(R.id.fragment_container,
-                            pledgeFragment,
-                            PledgeFragment::class.java.simpleName)
-                    ?.addToBackStack(PledgeFragment::class.java.simpleName)
-                    ?.commit()
-        }
+        this.viewModel.provideProjectData(projectData)
     }
 }

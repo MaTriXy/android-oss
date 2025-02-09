@@ -2,60 +2,87 @@ package com.kickstarter.ui.activities
 
 import android.os.Bundle
 import android.widget.TextView
-import com.kickstarter.R
-import com.kickstarter.libs.BaseActivity
-import com.kickstarter.libs.qualifiers.RequiresActivityViewModel
-import com.kickstarter.libs.rx.transformers.Transformers
-import com.kickstarter.libs.transformations.CircleTransformation
-import com.kickstarter.libs.utils.BooleanUtils
+import androidx.activity.ComponentActivity
+import androidx.activity.viewModels
+import androidx.core.view.isGone
+import com.kickstarter.databinding.ActivityEditProfileBinding
 import com.kickstarter.libs.utils.SwitchCompatUtils
-import com.kickstarter.libs.utils.ViewUtils
+import com.kickstarter.libs.utils.extensions.addToDisposable
+import com.kickstarter.libs.utils.extensions.getEnvironment
+import com.kickstarter.libs.utils.extensions.isFalse
 import com.kickstarter.models.User
+import com.kickstarter.ui.extensions.loadCircleImage
+import com.kickstarter.ui.extensions.setUpConnectivityStatusCheck
+import com.kickstarter.ui.extensions.showSnackbar
+import com.kickstarter.utils.WindowInsetsUtil
 import com.kickstarter.viewmodels.EditProfileViewModel
-import com.squareup.picasso.Picasso
-import kotlinx.android.synthetic.main.activity_edit_profile.*
-import rx.android.schedulers.AndroidSchedulers
+import io.reactivex.android.schedulers.AndroidSchedulers
+import io.reactivex.disposables.CompositeDisposable
 
-@RequiresActivityViewModel(EditProfileViewModel.ViewModel::class)
-class EditProfileActivity : BaseActivity<EditProfileViewModel.ViewModel>() {
+class EditProfileActivity : ComponentActivity() {
+    private lateinit var binding: ActivityEditProfileBinding
+    private lateinit var viewModelFactory: EditProfileViewModel.Factory
+    private val viewModel: EditProfileViewModel.EditProfileViewModel by viewModels { viewModelFactory }
+    private val disposables = CompositeDisposable()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_edit_profile)
 
-        this.viewModel.outputs.userAvatarUrl()
-                .compose(bindToLifecycle())
-                .compose(Transformers.observeForUI())
-                .subscribe { url ->
-                    Picasso.with(this).load(url).transform(CircleTransformation()).into(avatar_image_view)
-                }
-
-        this.viewModel.outputs.user()
-                .compose(bindToLifecycle())
-                .observeOn(AndroidSchedulers.mainThread())
-                .subscribe { this.displayPreferences(it) }
-
-        this.viewModel.outputs.userName()
-                .compose(bindToLifecycle())
-                .compose(Transformers.observeForUI())
-                .subscribe { name_edit_text.setText(it, TextView.BufferType.EDITABLE) }
-
-        this.viewModel.outputs.hidePrivateProfileRow()
-                .compose(bindToLifecycle())
-                .observeOn(AndroidSchedulers.mainThread())
-                .subscribe {
-                    ViewUtils.setGone(private_profile_row, it)
-                    ViewUtils.setGone(private_profile_text_view, it)
-                    ViewUtils.setGone(public_profile_text_view, it)
-                }
-
-        private_profile_switch.setOnClickListener {
-            this.viewModel.inputs.showPublicProfile(private_profile_switch.isChecked)
+        this.getEnvironment()?.let { env ->
+            viewModelFactory = EditProfileViewModel.Factory(env)
         }
 
+        binding = ActivityEditProfileBinding.inflate(layoutInflater)
+        WindowInsetsUtil.manageEdgeToEdge(
+            window,
+            binding.root,
+        )
+        setContentView(binding.root)
+        setUpConnectivityStatusCheck(lifecycle)
+
+        this.viewModel.outputs.userAvatarUrl()
+            .observeOn(AndroidSchedulers.mainThread())
+            .subscribe { url ->
+                binding.avatarImageView.loadCircleImage(url)
+            }.addToDisposable(disposables)
+
+        this.viewModel.outputs.user()
+            .observeOn(AndroidSchedulers.mainThread())
+            .subscribe { this.displayPreferences(it) }
+            .addToDisposable(disposables)
+
+        this.viewModel.outputs.userName()
+            .observeOn(AndroidSchedulers.mainThread())
+            .subscribe { binding.nameEditText.setText(it, TextView.BufferType.EDITABLE) }
+            .addToDisposable(disposables)
+
+        this.viewModel.outputs.hidePrivateProfileRow()
+            .observeOn(AndroidSchedulers.mainThread())
+            .subscribe {
+                binding.privateProfileRow.isGone = it
+                binding.privateProfileTextView.isGone = it
+                binding.publicProfileTextView.isGone = it
+            }.addToDisposable(disposables)
+
+        this.viewModel.unableToSavePreferenceError()
+            .observeOn(AndroidSchedulers.mainThread())
+            .subscribe { showSnackbar(binding.newSettingsLayout, it) }
+            .addToDisposable(disposables)
+
+        binding.privateProfileSwitch.setOnClickListener {
+            this.viewModel.inputs.privateProfileChecked(binding.privateProfileSwitch.isChecked)
+        }
+    }
+
+    override fun onDestroy() {
+        disposables.clear()
+        super.onDestroy()
     }
 
     private fun displayPreferences(user: User) {
-        SwitchCompatUtils.setCheckedWithoutAnimation(private_profile_switch, BooleanUtils.isFalse(user.showPublicProfile()))
+        SwitchCompatUtils.setCheckedWithoutAnimation(
+            binding.privateProfileSwitch,
+            user.showPublicProfile().isFalse()
+        )
     }
 }

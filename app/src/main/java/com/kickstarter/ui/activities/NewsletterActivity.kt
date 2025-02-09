@@ -1,84 +1,148 @@
 package com.kickstarter.ui.activities
 
 import android.os.Bundle
-import androidx.annotation.NonNull
+import androidx.activity.viewModels
+import androidx.appcompat.app.AppCompatActivity
 import com.kickstarter.R
-import com.kickstarter.libs.BaseActivity
-import com.kickstarter.libs.Build
-import com.kickstarter.libs.CurrentUserType
+import com.kickstarter.databinding.ActivityNewsletterBinding
 import com.kickstarter.libs.KSString
-import com.kickstarter.libs.qualifiers.RequiresActivityViewModel
-import com.kickstarter.libs.utils.BooleanUtils.isTrue
 import com.kickstarter.libs.utils.SwitchCompatUtils
 import com.kickstarter.libs.utils.ViewUtils
+import com.kickstarter.libs.utils.extensions.addToDisposable
+import com.kickstarter.libs.utils.extensions.getEnvironment
+import com.kickstarter.libs.utils.extensions.isTrue
 import com.kickstarter.models.User
-import com.kickstarter.ui.data.Newsletter
-import com.kickstarter.viewmodels.NewsletterViewModel
-import kotlinx.android.synthetic.main.activity_newsletter.*
-import rx.android.schedulers.AndroidSchedulers
+import com.kickstarter.ui.extensions.setUpConnectivityStatusCheck
+import com.kickstarter.utils.WindowInsetsUtil
+import com.kickstarter.viewmodels.NewsletterViewModel.Factory
+import com.kickstarter.viewmodels.NewsletterViewModel.NewsletterViewModel
+import io.reactivex.android.schedulers.AndroidSchedulers
+import io.reactivex.disposables.CompositeDisposable
 
-@RequiresActivityViewModel(NewsletterViewModel.ViewModel::class)
-class NewsletterActivity : BaseActivity<NewsletterViewModel.ViewModel>() {
+enum class Newsletter {
+    ALL, ALUMNI, ARTS, FILMS, GAMES, HAPPENING, INVENT, MUSIC, PROMO, READS, WEEKLY
+}
 
-    private lateinit var build: Build
-    private lateinit var currentUserType: CurrentUserType
+class NewsletterActivity : AppCompatActivity() {
+
     private lateinit var ksString: KSString
 
+    private lateinit var binding: ActivityNewsletterBinding
+
+    private lateinit var viewModelFactory: Factory
+    private val viewModel: NewsletterViewModel by viewModels {
+        viewModelFactory
+    }
+
+    private val disposables = CompositeDisposable()
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_newsletter)
+        binding = ActivityNewsletterBinding.inflate(layoutInflater)
+        WindowInsetsUtil.manageEdgeToEdge(
+            window,
+            binding.root
+        )
+        setContentView(binding.root)
 
-        this.build = environment().build()
-        this.currentUserType = environment().currentUser()
-        this.ksString = environment().ksString()
+        setUpConnectivityStatusCheck(lifecycle)
+
+        val environment = this.getEnvironment()?.let { env ->
+            viewModelFactory = Factory(env)
+            env
+        }
+
+        this.ksString = requireNotNull(environment?.ksString())
 
         this.viewModel.outputs.user()
-                .compose(bindToLifecycle())
-                .observeOn(AndroidSchedulers.mainThread())
-                .subscribe(this::displayPreferences)
+            .observeOn(AndroidSchedulers.mainThread())
+            .subscribe { this.displayPreferences(it) }
+            .addToDisposable(disposables)
 
         this.viewModel.errors.unableToSavePreferenceError()
-                .compose(bindToLifecycle())
-                .observeOn(AndroidSchedulers.mainThread())
-                .subscribe { ViewUtils.showToast(this, getString(R.string.profile_settings_error)) }
+            .observeOn(AndroidSchedulers.mainThread())
+            .subscribe { ViewUtils.showToast(this, getString(R.string.profile_settings_error)) }
+            .addToDisposable(disposables)
 
         this.viewModel.outputs.showOptInPrompt()
-                .compose(bindToLifecycle())
-                .observeOn(AndroidSchedulers.mainThread())
-                .subscribe(this::showOptInPrompt)
+            .observeOn(AndroidSchedulers.mainThread())
+            .subscribe(this::showOptInPrompt)
+            .addToDisposable(disposables)
 
         this.viewModel.outputs.subscribeAll()
-                .compose(bindToLifecycle())
-                .observeOn(AndroidSchedulers.mainThread())
-                .subscribe { SwitchCompatUtils.setCheckedWithoutAnimation(subscribe_all_switch, it) }
+            .observeOn(AndroidSchedulers.mainThread())
+            .subscribe {
+                SwitchCompatUtils.setCheckedWithoutAnimation(
+                    binding.subscribeAllSwitch,
+                    it
+                )
+            }
+            .addToDisposable(disposables)
 
-        alumni_switch.setOnClickListener { viewModel.inputs.sendAlumniNewsletter(alumni_switch.isChecked) }
-        arts_news_switch.setOnClickListener { viewModel.inputs.sendArtsNewsNewsletter(arts_news_switch.isChecked) }
-        films_switch.setOnClickListener { viewModel.inputs.sendFilmsNewsletter(films_switch.isChecked) }
-        games_we_love_switch.setOnClickListener { viewModel.inputs.sendGamesNewsletter(games_we_love_switch.isChecked) }
-        happening_switch.setOnClickListener { viewModel.inputs.sendHappeningNewsletter(happening_switch.isChecked) }
-        invent_switch.setOnClickListener { viewModel.inputs.sendInventNewsletter(invent_switch.isChecked) }
-        music_switch.setOnClickListener { viewModel.inputs.sendMusicNewsletter(music_switch.isChecked) }
-        news_events_switch.setOnClickListener { viewModel.inputs.sendPromoNewsletter(news_events_switch.isChecked) }
-        projects_we_love_switch.setOnClickListener { viewModel.inputs.sendWeeklyNewsletter(projects_we_love_switch.isChecked) }
-        reads_switch.setOnClickListener { viewModel.inputs.sendReadsNewsletter(reads_switch.isChecked) }
-        subscribe_all_switch.setOnClickListener { viewModel.inputs.sendAllNewsletter(subscribe_all_switch.isChecked) }
+        binding.alumniSwitch.setOnClickListener { viewModel.inputs.sendAlumniNewsletter(binding.alumniSwitch.isChecked) }
+        binding.artsNewsSwitch.setOnClickListener { viewModel.inputs.sendArtsNewsNewsletter(binding.artsNewsSwitch.isChecked) }
+        binding.filmsSwitch.setOnClickListener { viewModel.inputs.sendFilmsNewsletter(binding.filmsSwitch.isChecked) }
+        binding.gamesWeLoveSwitch.setOnClickListener { viewModel.inputs.sendGamesNewsletter(binding.gamesWeLoveSwitch.isChecked) }
+        binding.happeningSwitch.setOnClickListener {
+            viewModel.inputs.sendHappeningNewsletter(
+                binding.happeningSwitch.isChecked
+            )
+        }
+        binding.inventSwitch.setOnClickListener { viewModel.inputs.sendInventNewsletter(binding.inventSwitch.isChecked) }
+        binding.musicSwitch.setOnClickListener { viewModel.inputs.sendMusicNewsletter(binding.musicSwitch.isChecked) }
+        binding.newsEventsSwitch.setOnClickListener { viewModel.inputs.sendPromoNewsletter(binding.newsEventsSwitch.isChecked) }
+        binding.projectsWeLoveSwitch.setOnClickListener {
+            viewModel.inputs.sendWeeklyNewsletter(
+                binding.projectsWeLoveSwitch.isChecked
+            )
+        }
+        binding.readsSwitch.setOnClickListener { viewModel.inputs.sendReadsNewsletter(binding.readsSwitch.isChecked) }
+        binding.subscribeAllSwitch.setOnClickListener { viewModel.inputs.sendAllNewsletter(binding.subscribeAllSwitch.isChecked) }
     }
 
-    private fun displayPreferences(@NonNull user: User) {
-        SwitchCompatUtils.setCheckedWithoutAnimation(alumni_switch, isTrue(user.alumniNewsletter()))
-        SwitchCompatUtils.setCheckedWithoutAnimation(arts_news_switch, isTrue(user.artsCultureNewsletter()))
-        SwitchCompatUtils.setCheckedWithoutAnimation(films_switch, isTrue(user.filmNewsletter()))
-        SwitchCompatUtils.setCheckedWithoutAnimation(games_we_love_switch, isTrue(user.gamesNewsletter()))
-        SwitchCompatUtils.setCheckedWithoutAnimation(happening_switch, isTrue(user.happeningNewsletter()))
-        SwitchCompatUtils.setCheckedWithoutAnimation(invent_switch, isTrue(user.inventNewsletter()))
-        SwitchCompatUtils.setCheckedWithoutAnimation(music_switch, isTrue(user.musicNewsletter()))
-        SwitchCompatUtils.setCheckedWithoutAnimation(news_events_switch, isTrue(user.promoNewsletter()))
-        SwitchCompatUtils.setCheckedWithoutAnimation(projects_we_love_switch, isTrue(user.weeklyNewsletter()))
-        SwitchCompatUtils.setCheckedWithoutAnimation(reads_switch, isTrue(user.publishingNewsletter()))
+    private fun displayPreferences(user: User) {
+        SwitchCompatUtils.setCheckedWithoutAnimation(
+            binding.alumniSwitch,
+            user.alumniNewsletter().isTrue()
+        )
+        SwitchCompatUtils.setCheckedWithoutAnimation(
+            binding.artsNewsSwitch,
+            user.artsCultureNewsletter().isTrue()
+        )
+        SwitchCompatUtils.setCheckedWithoutAnimation(
+            binding.filmsSwitch,
+            user.filmNewsletter().isTrue()
+        )
+        SwitchCompatUtils.setCheckedWithoutAnimation(
+            binding.gamesWeLoveSwitch,
+            user.gamesNewsletter().isTrue()
+        )
+        SwitchCompatUtils.setCheckedWithoutAnimation(
+            binding.happeningSwitch,
+            user.happeningNewsletter().isTrue()
+        )
+        SwitchCompatUtils.setCheckedWithoutAnimation(
+            binding.inventSwitch,
+            user.inventNewsletter().isTrue()
+        )
+        SwitchCompatUtils.setCheckedWithoutAnimation(
+            binding.musicSwitch,
+            user.musicNewsletter().isTrue()
+        )
+        SwitchCompatUtils.setCheckedWithoutAnimation(
+            binding.newsEventsSwitch,
+            user.promoNewsletter().isTrue()
+        )
+        SwitchCompatUtils.setCheckedWithoutAnimation(
+            binding.projectsWeLoveSwitch,
+            user.weeklyNewsletter().isTrue()
+        )
+        SwitchCompatUtils.setCheckedWithoutAnimation(
+            binding.readsSwitch,
+            user.publishingNewsletter().isTrue()
+        )
     }
 
-    private fun newsletterString(@NonNull newsletter: Newsletter): String? {
+    private fun newsletterString(newsletter: Newsletter): String? {
         return when (newsletter) {
             Newsletter.ALL -> getString(R.string.profile_settings_newsletter_subscribe_all)
             Newsletter.ALUMNI -> getString(R.string.profile_settings_newsletter_alumni)
@@ -97,7 +161,15 @@ class NewsletterActivity : BaseActivity<NewsletterViewModel.ViewModel>() {
     private fun showOptInPrompt(newsletter: Newsletter) {
         val string = newsletterString(newsletter)
 
-        val optInDialogMessageString = this.ksString.format(getString(R.string.profile_settings_newsletter_opt_in_message), "newsletter", string)
-        ViewUtils.showDialog(this, getString(R.string.profile_settings_newsletter_opt_in_title), optInDialogMessageString)
+        val optInDialogMessageString = this.ksString.format(
+            getString(R.string.profile_settings_newsletter_opt_in_message),
+            "newsletter",
+            string
+        )
+        ViewUtils.showDialog(
+            this,
+            getString(R.string.profile_settings_newsletter_opt_in_title),
+            optInDialogMessageString
+        )
     }
 }

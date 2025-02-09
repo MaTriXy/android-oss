@@ -1,0 +1,513 @@
+# Fragment used to load the Project Card information on Discovery
+fragment projectCard on Project {
+    backersCount
+    description
+    isLaunched
+    isPledgeOverTimeAllowed
+    backing {
+        id
+    }
+    category {
+        ...category
+    }
+    country {
+        ...country
+    }
+    createdAt
+    creator {
+        ... user
+    }
+    prelaunchActivated
+    projectNotice
+    projectOfTheDayAt
+    friends(first:3) {
+        nodes {
+            ... user
+        }
+    }
+    fxRate
+    deadlineAt
+    goal {
+        ... amount
+    }
+    pledged {
+        ... amount
+    }
+    id
+    isWatched
+    launchedAt
+    location {
+        ... location
+    }
+    name
+    ...full
+    prelaunchActivated
+    slug
+    isProjectWeLove
+    state
+    stateChangedAt
+    url
+    isInPostCampaignPledgingPhase
+    postCampaignPledgingEnabled
+}
+
+# Fragment used to load all the Project information on Project Page
+fragment fullProject on Project {
+    availableCardTypes
+    backersCount
+    description
+    minPledge
+    isLaunched
+    isPledgeOverTimeAllowed
+    sendMetaCapiEvents
+    sendThirdPartyEvents
+    backing {
+        ... backing
+    }
+    category {
+        ...category
+    }
+    commentsCount(withReplies:true)
+    country {
+        ...country
+    }
+    createdAt
+    creator {
+        ... user
+    }
+    flagging {
+        kind
+    }
+    currency
+    canComment
+    prelaunchActivated
+    projectNotice
+    projectOfTheDayAt
+    friends {
+        nodes {
+            ... user
+        }
+    }
+    fxRate
+    deadlineAt
+    goal {
+        ... amount
+    }
+    id
+    isWatched
+    launchedAt
+    location {
+        ... location
+    }
+    name
+    collaboratorPermissions
+    pledged {
+        ... amount
+    }
+    ...full
+    prelaunchActivated
+    ...tagsCreative
+    ...tagsDiscovery
+    rewards { # query within project the bare minimum for rewards
+        nodes {
+            ... reward
+        }
+    }
+    risks
+    story
+    slug
+    isProjectWeLove
+    state
+    stateChangedAt
+    usdExchangeRate
+    posts {
+        ...updates
+    }
+    url
+    video {
+        ...video
+    }
+
+    # - Frequently asked questions
+    faqs {
+        nodes {
+            ... faq
+        }
+    }
+
+    # - Artificial Intelligence Disclosure
+    aiDisclosure {
+        ... aiDisclosure
+    }
+
+    environmentalCommitments {
+        ... environmentalCommitment
+    }
+    watchesCount
+    isInPostCampaignPledgingPhase
+    postCampaignPledgingEnabled
+}
+
+fragment backing on Backing {
+    id
+    status
+    sequence
+    cancelable
+    pledgedOn
+    backerCompleted
+    isPostCampaign
+    incremental
+    project {
+        ... project
+    }
+    bonusAmount {
+        ... amount
+    }
+    location {
+        ... location
+    }
+    amount {
+        ... amount
+    }
+    paymentSource {
+        ... payment
+    }
+    paymentIncrements {
+        ...paymentIncrement
+    }
+    shippingAmount {
+        ... amount
+    }
+    reward {
+        ... reward
+        items {
+            ... rewardItems
+        }
+    }
+    backer {
+        ... user
+    }
+    addOns {
+        nodes {
+            ... reward
+            items {
+                ... rewardItems
+            }
+        }
+    }
+}
+
+fragment rewardItems on RewardItemsConnection {
+    edges {
+        quantity
+        node {
+            id
+            name
+        }
+    }
+}
+
+fragment full on Project {
+    image {
+        url(width: 1024)
+        altText
+    }
+}
+
+fragment rewardImage on Reward {
+    image {
+        url(width: 1024)
+        altText
+    }
+}
+
+fragment video on Video {
+    previewImageUrl
+    videoSources {
+        base {
+            src
+        }
+        high {
+            src
+        }
+        hls {
+            src
+        }
+    }
+}
+
+fragment tagsDiscovery on Project {
+    tags(scope: CREATIVE_PROMPT) {
+        id
+    }
+}
+
+fragment tagsCreative on Project {
+    tags(scope: CREATIVE_PROMPT) {
+        id
+    }
+}
+
+fragment updates on PostConnection {
+    nodes {
+        updatedAt
+    }
+    totalCount
+}
+
+
+fragment category on Category {
+    analyticsName
+    id
+    name
+    slug
+    totalProjectCount
+    url
+    parentCategory {
+        analyticsName
+        id
+        name
+        slug
+        totalProjectCount
+        url
+    }
+}
+
+fragment country on Country {
+    code
+    name
+}
+
+fragment checkoutBacking on Backing {
+    clientSecret
+    requiresAction
+    status
+}
+
+fragment project on Project {
+    id
+    slug
+}
+
+fragment reward on Reward {
+    id
+    name
+    backersCount
+    description
+    estimatedDeliveryOn
+    available
+    amount {
+        ... amount
+    }
+    pledgeAmount {
+        ... amount
+    }
+    latePledgeAmount {
+        ... amount
+    }
+    convertedAmount{
+        ... amount
+    }
+    shippingPreference
+    remainingQuantity
+    limit
+    limitPerBacker
+    startsAt
+    endsAt
+    rewardType
+    allowedAddons {
+        nodes {
+            id
+        }
+    }
+    localReceiptLocation {
+        ... location
+    }
+}
+
+fragment aiDisclosure on AiDisclosure {
+    fundingForAiAttribution
+    fundingForAiConsent
+    fundingForAiOption
+    generatedByAiConsent
+    generatedByAiDetails
+    id
+    otherAiDetails
+}
+
+fragment environmentalCommitment on EnvironmentalCommitment {
+    commitmentCategory
+    description
+    id
+}
+
+fragment faq on ProjectFaq {
+    id
+    answer
+    createdAt
+    question
+}
+
+fragment comment on Comment {
+    id
+    authorBadges
+    author {
+       ...user
+    }
+    body
+    deleted
+    hasFlaggings
+    sustained
+    parentId
+    authorCanceledPledge
+    replies {
+        totalCount
+    }
+    createdAt
+}
+
+fragment shippingRule on ShippingRule {
+    cost {
+        ... amount
+    }
+    location {
+        ... location
+    }
+    estimatedMin {
+        amount
+    }
+    estimatedMax {
+        amount
+    }
+}
+
+
+
+fragment ppoCard on Backing {
+    id
+    backingDetailsPageRoute(type: url, tab: survey_responses)
+    clientSecret
+    amount {
+        ...amount
+    }
+    deliveryAddress {
+        id
+        addressLine1
+        addressLine2
+        city
+        region
+        postalCode
+        phoneNumber
+        recipientName
+        countryCode
+    }
+    project {
+        name
+        id
+        slug
+        backerSurvey {
+            id
+        }
+        ...full
+        creator {
+            name
+            id
+        }
+    }
+}
+
+fragment user on User {
+    name
+    id
+    imageUrl(blur: false, width: 54),
+    isCreator
+    chosenCurrency
+}
+
+fragment amount on Money {
+    amount
+    currency
+    symbol
+}
+
+fragment paymentIncrementAmount on PaymentIncrementAmount {
+    amountAsCents
+    amountAsFloat
+    amountFormattedInProjectNativeCurrency
+    amountFormattedInProjectNativeCurrencyWithCurrencyCode
+    currency
+}
+
+fragment location on Location {
+    displayableName
+    country
+    id
+    name
+}
+
+fragment pageInfo on PageInfo {
+      hasPreviousPage
+      hasNextPage
+      startCursor
+      endCursor
+}
+
+fragment payment on CreditCard {
+    id
+    lastFour
+    expirationDate
+    type
+    state
+    stripeCardId
+}
+
+fragment freeformPost on FreeformPost {
+    comments (first: $limit, after: $cursor) {
+        edges {
+            cursor
+            node {
+                ...comment
+            }
+        }
+        pageInfo {
+            ...pageInfo
+        }
+        totalCount
+    }
+}
+
+fragment post on Postable {
+    id
+    project {
+        id
+        url
+    }
+    author {
+        ...user
+    }
+    authorRole
+    isLiked
+    title
+    number
+    isPublic
+    isVisible
+    publishedAt
+    updatedAt
+    likesCount
+    ...updateFreeformPost
+}
+
+fragment updateFreeformPost on FreeformPost {
+    commentsCount(withReplies:true)
+    body
+}
+
+fragment paymentIncrement on PaymentIncrement {
+    id
+    amount {
+        ...paymentIncrementAmount
+    }
+    state
+    stateReason
+    scheduledCollection
+}

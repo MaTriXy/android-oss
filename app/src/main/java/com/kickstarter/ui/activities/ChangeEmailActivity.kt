@@ -6,112 +6,145 @@ import android.view.Menu
 import android.view.MenuItem
 import android.view.View
 import android.view.inputmethod.InputMethodManager
+import androidx.activity.viewModels
+import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import androidx.core.view.isGone
 import com.kickstarter.R
-import com.kickstarter.extensions.onChange
-import com.kickstarter.extensions.showSnackbar
-import com.kickstarter.libs.BaseActivity
-import com.kickstarter.libs.qualifiers.RequiresActivityViewModel
-import com.kickstarter.libs.utils.ViewUtils
+import com.kickstarter.databinding.ActivityChangeEmailBinding
+import com.kickstarter.libs.utils.extensions.addToDisposable
+import com.kickstarter.libs.utils.extensions.getEnvironment
+import com.kickstarter.ui.extensions.onChange
+import com.kickstarter.ui.extensions.setUpConnectivityStatusCheck
+import com.kickstarter.ui.extensions.showSnackbar
+import com.kickstarter.utils.WindowInsetsUtil
 import com.kickstarter.viewmodels.ChangeEmailViewModel
-import kotlinx.android.synthetic.main.activity_change_email.*
-import kotlinx.android.synthetic.main.change_email_toolbar.*
-import rx.android.schedulers.AndroidSchedulers
+import io.reactivex.android.schedulers.AndroidSchedulers
+import io.reactivex.disposables.CompositeDisposable
 
+class ChangeEmailActivity : AppCompatActivity() {
 
-@RequiresActivityViewModel(ChangeEmailViewModel.ViewModel::class)
-class ChangeEmailActivity : BaseActivity<ChangeEmailViewModel.ViewModel>() {
+    private lateinit var viewModelFactory: ChangeEmailViewModel.Factory
+    private val viewModel: ChangeEmailViewModel.ChangeEmailViewModel by viewModels { viewModelFactory }
 
     private var saveEnabled = false
 
+    private lateinit var binding: ActivityChangeEmailBinding
+
+    private lateinit var disposables: CompositeDisposable
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_change_email)
-        setSupportActionBar(change_email_toolbar)
+        disposables = CompositeDisposable()
 
-        new_email.onChange { this.viewModel.inputs.email(it) }
-        current_password.onChange { this.viewModel.inputs.password(it) }
-        send_verification_email.setOnClickListener { this.viewModel.inputs.sendVerificationEmail() }
+        this.getEnvironment()?.let { env ->
+            viewModelFactory = ChangeEmailViewModel.Factory(env)
+        }
 
-        new_email.onFocusChangeListener = View.OnFocusChangeListener { _, hasFocus ->
+        binding = ActivityChangeEmailBinding.inflate(layoutInflater)
+        WindowInsetsUtil.manageEdgeToEdge(
+            window,
+            binding.root,
+        )
+        setContentView(binding.root)
+        setSupportActionBar(binding.changeEmailActivityToolbar.changeEmailToolbar)
+
+        setUpConnectivityStatusCheck(lifecycle)
+        binding.newEmail.onChange { this.viewModel.inputs.email(it) }
+        binding.currentPassword.onChange { this.viewModel.inputs.password(it) }
+        binding.sendVerificationEmail.setOnClickListener { this.viewModel.inputs.sendVerificationEmail() }
+
+        binding.newEmail.onFocusChangeListener = View.OnFocusChangeListener { _, hasFocus ->
             this@ChangeEmailActivity.viewModel.inputs.emailFocus(hasFocus)
         }
 
         this.viewModel.outputs.currentEmail()
-                .compose(bindToLifecycle())
-                .observeOn(AndroidSchedulers.mainThread())
-                .subscribe { current_email.setText(it) }
+            .observeOn(AndroidSchedulers.mainThread())
+            .subscribe { binding.currentEmail.setText(it) }
+            .addToDisposable(disposables)
 
         this.viewModel.outputs.emailErrorIsVisible()
-                .compose(bindToLifecycle())
-                .observeOn(AndroidSchedulers.mainThread())
-                .filter { it }
-                .subscribe { new_email_container.error = getString(R.string.Email_must_be_a_valid_email_address) }
+            .observeOn(AndroidSchedulers.mainThread())
+            .filter { it }
+            .subscribe {
+                binding.newEmailContainer.error =
+                    getString(R.string.Email_must_be_a_valid_email_address)
+            }
+            .addToDisposable(disposables)
 
         this.viewModel.outputs.emailErrorIsVisible()
-                .compose(bindToLifecycle())
-                .observeOn(AndroidSchedulers.mainThread())
-                .filter { !it }
-                .subscribe { new_email_container.error = null }
+            .observeOn(AndroidSchedulers.mainThread())
+            .filter { !it }
+            .subscribe { binding.newEmailContainer.error = null }
+            .addToDisposable(disposables)
 
         this.viewModel.outputs.error()
-                .compose(bindToLifecycle())
-                .observeOn(AndroidSchedulers.mainThread())
-                .subscribe { showSnackbar(change_email_layout, it) }
+            .observeOn(AndroidSchedulers.mainThread())
+            .subscribe { showSnackbar(binding.changeEmailLayout, it) }
+            .addToDisposable(disposables)
 
         this.viewModel.outputs.sendVerificationIsHidden()
-                .compose(bindToLifecycle())
-                .observeOn(AndroidSchedulers.mainThread())
-                .subscribe {
-                    ViewUtils.setGone(send_verification_email, it)
-                }
+            .observeOn(AndroidSchedulers.mainThread())
+            .subscribe {
+                binding.sendVerificationEmail.isGone = it
+            }
+            .addToDisposable(disposables)
 
         this.viewModel.outputs.saveButtonIsEnabled()
-                .compose(bindToLifecycle())
-                .observeOn(AndroidSchedulers.mainThread())
-                .subscribe { updateMenu(it) }
+            .observeOn(AndroidSchedulers.mainThread())
+            .subscribe { updateMenu(it) }
+            .addToDisposable(disposables)
 
         this.viewModel.outputs.progressBarIsVisible()
-                .compose(bindToLifecycle())
-                .observeOn(AndroidSchedulers.mainThread())
-                .subscribe { updateMenu(!it) }
+            .observeOn(AndroidSchedulers.mainThread())
+            .subscribe { updateMenu(!it) }
+            .addToDisposable(disposables)
 
         this.viewModel.outputs.progressBarIsVisible()
-                .compose(bindToLifecycle())
-                .observeOn(AndroidSchedulers.mainThread())
-                .subscribe { ViewUtils.setGone(progress_bar, !it) }
+            .observeOn(AndroidSchedulers.mainThread())
+            .subscribe {
+                binding.progressBar.isGone = !it
+            }
+            .addToDisposable(disposables)
 
         this.viewModel.outputs.success()
-                .compose(bindToLifecycle())
-                .observeOn(AndroidSchedulers.mainThread())
-                .subscribe { showSnackbar(change_email_layout, R.string.Verification_email_sent) }
+            .observeOn(AndroidSchedulers.mainThread())
+            .subscribe { showSnackbar(binding.changeEmailLayout, R.string.Verification_email_sent) }
+            .addToDisposable(disposables)
 
         this.viewModel.outputs.success()
-                .compose(bindToLifecycle())
-                .observeOn(AndroidSchedulers.mainThread())
-                .subscribe { clearForm() }
+            .observeOn(AndroidSchedulers.mainThread())
+            .subscribe { clearForm() }
+            .addToDisposable(disposables)
 
         this.viewModel.outputs.warningText()
-                .compose(bindToLifecycle())
-                .observeOn(AndroidSchedulers.mainThread())
-                .subscribe {
-                    if (it != null) {
-                        email_warning_text_view.text = getString(it)
-                        email_warning_text_view.visibility = View.VISIBLE
-                    } else {
-                        ViewUtils.setGone(email_warning_text_view, true)
-                    }
+            .observeOn(AndroidSchedulers.mainThread())
+            .subscribe {
+                if (it != 0) {
+                    binding.emailWarningTextView.text = getString(it)
+                    binding.emailWarningTextView.visibility = View.VISIBLE
+                } else {
+                    binding.emailWarningTextView.isGone = true
                 }
+            }
+            .addToDisposable(disposables)
 
         this.viewModel.outputs.warningTextColor()
-                .compose(bindToLifecycle())
-                .observeOn(AndroidSchedulers.mainThread())
-                .subscribe { email_warning_text_view.setTextColor(ContextCompat.getColor(this@ChangeEmailActivity, it)) }
+            .observeOn(AndroidSchedulers.mainThread())
+            .subscribe {
+                binding.emailWarningTextView.setTextColor(
+                    ContextCompat.getColor(
+                        this@ChangeEmailActivity,
+                        it
+                    )
+                )
+            }
+            .addToDisposable(disposables)
 
         this.viewModel.outputs.verificationEmailButtonText()
-                .compose(bindToLifecycle())
-                .observeOn(AndroidSchedulers.mainThread())
-                .subscribe { send_verification_email.text = getString(it) }
+            .observeOn(AndroidSchedulers.mainThread())
+            .subscribe { binding.sendVerificationEmail.text = getString(it) }
+            .addToDisposable(disposables)
     }
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
@@ -120,9 +153,10 @@ class ChangeEmailActivity : BaseActivity<ChangeEmailViewModel.ViewModel>() {
                 this.viewModel.inputs.updateEmailClicked()
 
                 val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
-                imm.hideSoftInputFromWindow(new_email.windowToken, 0)
+                imm.hideSoftInputFromWindow(binding.newEmail.windowToken, 0)
                 true
             }
+
             else -> super.onOptionsItemSelected(item)
         }
     }
@@ -140,12 +174,17 @@ class ChangeEmailActivity : BaseActivity<ChangeEmailViewModel.ViewModel>() {
     }
 
     private fun clearForm() {
-        new_email.text = null
-        current_password.text = null
+        binding.newEmail.text = null
+        binding.currentEmail.text = null
     }
 
     private fun updateMenu(saveEnabled: Boolean) {
         this.saveEnabled = saveEnabled
         invalidateOptionsMenu()
+    }
+
+    override fun onDestroy() {
+        disposables.clear()
+        super.onDestroy()
     }
 }

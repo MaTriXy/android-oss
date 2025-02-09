@@ -5,9 +5,19 @@ import com.facebook.FacebookSdk;
 public class TestKSApplication extends KSApplication {
 
   @Override
+  public ApplicationComponent getComponent() {
+    final ApplicationComponent component = DaggerApplicationComponent.builder()
+            .applicationModule(new TestApplicationModule(this))
+            .build();
+
+    return component;
+  }
+
+  @Override
   public void onCreate() {
-    super.onCreate();
+    // - LoginToutViewModelTest needs the FacebookSDK initialized
     FacebookSdk.sdkInitialize(this);
+    super.onCreate();
   }
 
   @Override
@@ -15,3 +25,4 @@ public class TestKSApplication extends KSApplication {
     return true;
   }
 }
+

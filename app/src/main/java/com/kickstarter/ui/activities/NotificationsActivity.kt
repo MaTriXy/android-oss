@@ -6,33 +6,40 @@ import android.view.View
 import android.widget.AdapterView
 import android.widget.ArrayAdapter
 import android.widget.ImageButton
+import androidx.activity.ComponentActivity
+import androidx.activity.viewModels
 import androidx.core.content.ContextCompat
+import androidx.core.view.isGone
 import com.kickstarter.R
-import com.kickstarter.libs.BaseActivity
-import com.kickstarter.libs.qualifiers.RequiresActivityViewModel
+import com.kickstarter.databinding.ActivityNotificationsBinding
 import com.kickstarter.libs.utils.AnimationUtils
-import com.kickstarter.libs.utils.BooleanUtils.isTrue
-import com.kickstarter.libs.utils.IntegerUtils.intValueOrZero
 import com.kickstarter.libs.utils.ViewUtils
+import com.kickstarter.libs.utils.extensions.addToDisposable
+import com.kickstarter.libs.utils.extensions.getEnvironment
+import com.kickstarter.libs.utils.extensions.intValueOrZero
+import com.kickstarter.libs.utils.extensions.isTrue
 import com.kickstarter.models.User
+import com.kickstarter.utils.WindowInsetsUtil
 import com.kickstarter.viewmodels.NotificationsViewModel
-import kotlinx.android.synthetic.main.activity_notifications.*
-import rx.android.schedulers.AndroidSchedulers
+import io.reactivex.android.schedulers.AndroidSchedulers
+import io.reactivex.disposables.CompositeDisposable
 
-@RequiresActivityViewModel(NotificationsViewModel.ViewModel::class)
-class NotificationsActivity : BaseActivity<NotificationsViewModel.ViewModel>() {
+class NotificationsActivity : ComponentActivity() {
 
-    private val green = R.color.ksr_green_500
-    private val grey = R.color.ksr_dark_grey_400
+    private val green = R.color.kds_create_700
+    private val grey = R.color.kds_support_400
 
     private val circleOutline = R.drawable.circle_gray_outline
     private val circleFilled = R.drawable.circle_gray_filled
 
     private val subscribeString = R.string.profile_settings_accessibility_subscribe_notifications
-    private val subscribeMobileString = R.string.profile_settings_accessibility_subscribe_mobile_notifications
+    private val subscribeMobileString =
+        R.string.profile_settings_accessibility_subscribe_mobile_notifications
     private val unableToSaveString = R.string.profile_settings_error
-    private val unsubscribeMobileString = R.string.profile_settings_accessibility_unsubscribe_mobile_notifications
-    private val unsubscribeString = R.string.profile_settings_accessibility_unsubscribe_notifications
+    private val unsubscribeMobileString =
+        R.string.profile_settings_accessibility_unsubscribe_mobile_notifications
+    private val unsubscribeString =
+        R.string.profile_settings_accessibility_unsubscribe_notifications
 
     private var notifyMobileOfBackings: Boolean = false
     private var notifyMobileOfComments: Boolean = false
@@ -43,6 +50,7 @@ class NotificationsActivity : BaseActivity<NotificationsViewModel.ViewModel>() {
     private var notifyMobileOfMessages: Boolean = false
     private var notifyMobileOfPostLikes: Boolean = false
     private var notifyMobileOfUpdates: Boolean = false
+    private var notifyMobileOfMarketingUpdates: Boolean = false
     private var notifyOfBackings: Boolean = false
     private var notifyOfComments: Boolean = false
     private var notifyOfCreatorDigest: Boolean = false
@@ -52,42 +60,62 @@ class NotificationsActivity : BaseActivity<NotificationsViewModel.ViewModel>() {
     private var notifyOfMessages: Boolean = false
     private var notifyOfUpdates: Boolean = false
 
+    private lateinit var binding: ActivityNotificationsBinding
+
+    private lateinit var viewModelFactory: NotificationsViewModel.Factory
+    private val viewModel: NotificationsViewModel.NotificationsViewModel by viewModels { viewModelFactory }
+
+    private val disposables = CompositeDisposable()
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_notifications)
+        binding = ActivityNotificationsBinding.inflate(layoutInflater)
+        WindowInsetsUtil.manageEdgeToEdge(
+            window,
+            binding.root,
+        )
+        this.getEnvironment()?.let { env ->
+            viewModelFactory = NotificationsViewModel.Factory(env)
+            env
+        }
+
+        setContentView(binding.root)
 
         this.viewModel.outputs.creatorDigestFrequencyIsGone()
-                .compose(bindToLifecycle())
-                .observeOn(AndroidSchedulers.mainThread())
-                .subscribe { ViewUtils.setGone(email_frequency_row, it) }
+            .observeOn(AndroidSchedulers.mainThread())
+            .subscribe {
+                binding.emailFrequencyRow.isGone = it
+            }.addToDisposable(disposables)
 
         this.viewModel.outputs.creatorNotificationsAreGone()
-                .compose(bindToLifecycle())
-                .observeOn(AndroidSchedulers.mainThread())
-                .subscribe { ViewUtils.setGone(creator_notifications_section, it) }
+            .observeOn(AndroidSchedulers.mainThread())
+            .subscribe {
+                binding.creatorNotificationsSection.isGone = it
+            }.addToDisposable(disposables)
 
         this.viewModel.outputs.user()
-                .compose(bindToLifecycle())
-                .observeOn(AndroidSchedulers.mainThread())
-                .subscribe { this.displayPreferences(it) }
+            .observeOn(AndroidSchedulers.mainThread())
+            .subscribe { this.displayPreferences(it) }
+            .addToDisposable(disposables)
 
         this.viewModel.errors.unableToSavePreferenceError()
-                .compose(bindToLifecycle())
-                .observeOn(AndroidSchedulers.mainThread())
-                .subscribe { _ -> ViewUtils.showToast(this, getString(this.unableToSaveString)) }
+            .observeOn(AndroidSchedulers.mainThread())
+            .subscribe { _ -> ViewUtils.showToast(this, getString(this.unableToSaveString)) }
+            .addToDisposable(disposables)
 
         val emailFrequencyStrings = User.EmailFrequency.getStrings(this.resources)
         val arrayAdapter = ArrayAdapter<String>(this, R.layout.item_spinner, emailFrequencyStrings)
         arrayAdapter.setDropDownViewResource(R.layout.item_spinner_dropdown)
-        email_frequency_spinner.adapter = arrayAdapter
+        binding.emailFrequencySpinner.adapter = arrayAdapter
 
         setUpClickListeners()
-
     }
 
     private fun displayPreferences(user: User) {
-        project_notifications_count.text = intValueOrZero(user.backedProjectsCount()).toString()
+        binding.projectNotificationsCount.text =
+            user.backedProjectsCount().intValueOrZero().toString()
 
+        displayMarketingUpdates(user)
         displayBackingsNotificationSettings(user)
         displayCommentsNotificationSettings(user)
         displayCommentRepliesNotificationSettings(user)
@@ -99,93 +127,118 @@ class NotificationsActivity : BaseActivity<NotificationsViewModel.ViewModel>() {
         displayUpdatesNotificationSettings(user)
     }
 
+    private fun displayMarketingUpdates(user: User) {
+        this.notifyMobileOfMarketingUpdates = user.notifyMobileOfMarketingUpdate().isTrue()
+        toggleImageButtonIconColor(
+            binding.marketingUpdatesPhoneIcon,
+            this.notifyMobileOfMarketingUpdates,
+            true
+        )
+    }
+
     private fun displayBackingsNotificationSettings(user: User) {
-        this.notifyMobileOfBackings = isTrue(user.notifyMobileOfBackings())
-        this.notifyOfBackings = isTrue(user.notifyOfBackings())
-        this.notifyOfCreatorDigest = isTrue(user.notifyOfCreatorDigest())
+        this.notifyMobileOfBackings = user.notifyMobileOfBackings().isTrue()
+        this.notifyOfBackings = user.notifyOfBackings().isTrue()
+        this.notifyOfCreatorDigest = user.notifyOfCreatorDigest().isTrue()
 
         val frequencyIndex = when {
             notifyOfCreatorDigest -> User.EmailFrequency.DAILY_SUMMARY.ordinal
             else -> User.EmailFrequency.TWICE_A_DAY_SUMMARY.ordinal
         }
 
-        toggleImageButtonIconColor(backings_phone_icon, this.notifyMobileOfBackings, true)
-        toggleImageButtonIconColor(backings_mail_icon, this.notifyOfBackings)
+        toggleImageButtonIconColor(binding.backingsPhoneIcon, this.notifyMobileOfBackings, true)
+        toggleImageButtonIconColor(binding.backingsMailIcon, this.notifyOfBackings)
 
-        if (frequencyIndex != email_frequency_spinner.selectedItemPosition) {
-            email_frequency_spinner.setSelection(frequencyIndex, false)
+        if (frequencyIndex != binding.emailFrequencySpinner.selectedItemPosition) {
+            binding.emailFrequencySpinner.setSelection(frequencyIndex, false)
         }
 
-        email_frequency_spinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
-            override fun onNothingSelected(parent: AdapterView<*>?) {
+        binding.emailFrequencySpinner.onItemSelectedListener =
+            object : AdapterView.OnItemSelectedListener {
+                override fun onNothingSelected(parent: AdapterView<*>?) {
+                }
 
-            }
-
-            override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
-                if (frequencyIndex != position) {
-                    viewModel.inputs.notifyOfCreatorDigest(position == User.EmailFrequency.DAILY_SUMMARY.ordinal)
+                override fun onItemSelected(
+                    parent: AdapterView<*>?,
+                    view: View?,
+                    position: Int,
+                    id: Long
+                ) {
+                    if (frequencyIndex != position) {
+                        viewModel.inputs.notifyOfCreatorDigest(position == User.EmailFrequency.DAILY_SUMMARY.ordinal)
+                    }
                 }
             }
-        }
     }
 
     private fun displayCommentsNotificationSettings(user: User) {
-        this.notifyMobileOfComments = isTrue(user.notifyMobileOfComments())
-        this.notifyOfComments = isTrue(user.notifyOfComments())
+        this.notifyMobileOfComments = user.notifyMobileOfComments().isTrue()
+        this.notifyOfComments = user.notifyOfComments().isTrue()
 
-        toggleImageButtonIconColor(comments_phone_icon, this.notifyMobileOfComments, true)
-        toggleImageButtonIconColor(comments_mail_icon, this.notifyOfComments)
+        toggleImageButtonIconColor(binding.commentsPhoneIcon, this.notifyMobileOfComments, true)
+        toggleImageButtonIconColor(binding.commentsMailIcon, this.notifyOfComments)
     }
 
     private fun displayCommentRepliesNotificationSettings(user: User) {
-        this.notifyMobileOfCommentReplies = isTrue(user.notifyOfCommentReplies())
-        toggleImageButtonIconColor(comment_replies_mail_icon, this.notifyMobileOfCommentReplies)
+        this.notifyMobileOfCommentReplies = user.notifyOfCommentReplies().isTrue()
+        toggleImageButtonIconColor(
+            binding.commentRepliesMailIcon,
+            this.notifyMobileOfCommentReplies
+        )
     }
 
     private fun displayCreatorTipsNotificationSettings(user: User) {
-        this.notifyMobileOfCreatorEdu = isTrue(user.notifyMobileOfCreatorEdu())
-        this.notifyOfCreatorEdu = isTrue(user.notifyOfCreatorEdu())
+        this.notifyMobileOfCreatorEdu = user.notifyMobileOfCreatorEdu().isTrue()
+        this.notifyOfCreatorEdu = user.notifyOfCreatorEdu().isTrue()
 
-        toggleImageButtonIconColor(creator_edu_phone_icon, this.notifyMobileOfCreatorEdu, true)
-        toggleImageButtonIconColor(creator_edu_mail_icon, this.notifyOfCreatorEdu)
+        toggleImageButtonIconColor(binding.creatorEduPhoneIcon, this.notifyMobileOfCreatorEdu, true)
+        toggleImageButtonIconColor(binding.creatorEduMailIcon, this.notifyOfCreatorEdu)
     }
 
     private fun displayFollowerNotificationSettings(user: User) {
-        this.notifyMobileOfFollower = isTrue(user.notifyMobileOfFollower())
-        this.notifyOfFollower = isTrue(user.notifyOfFollower())
+        this.notifyMobileOfFollower = user.notifyMobileOfFollower().isTrue()
+        this.notifyOfFollower = user.notifyOfFollower().isTrue()
 
-        toggleImageButtonIconColor(new_followers_phone_icon, this.notifyMobileOfFollower, true)
-        toggleImageButtonIconColor(new_followers_mail_icon, this.notifyOfFollower)
+        toggleImageButtonIconColor(binding.newFollowersPhoneIcon, this.notifyMobileOfFollower, true)
+        toggleImageButtonIconColor(binding.newFollowersMailIcon, this.notifyOfFollower)
     }
 
     private fun displayFriendActivityNotificationSettings(user: User) {
-        this.notifyMobileOfFriendActivity = isTrue(user.notifyMobileOfFriendActivity())
-        this.notifyOfFriendActivity = isTrue(user.notifyOfFriendActivity())
+        this.notifyMobileOfFriendActivity = user.notifyMobileOfFriendActivity().isTrue()
+        this.notifyOfFriendActivity = user.notifyOfFriendActivity().isTrue()
 
-        toggleImageButtonIconColor(friend_activity_phone_icon, this.notifyMobileOfFriendActivity, true)
-        toggleImageButtonIconColor(friend_activity_mail_icon, this.notifyOfFriendActivity)
+        toggleImageButtonIconColor(
+            binding.friendActivityPhoneIcon,
+            this.notifyMobileOfFriendActivity,
+            true
+        )
+        toggleImageButtonIconColor(binding.friendActivityMailIcon, this.notifyOfFriendActivity)
     }
 
     private fun displayMessagesNotificationSettings(user: User) {
-        this.notifyMobileOfMessages = isTrue(user.notifyMobileOfMessages())
-        this.notifyOfMessages = isTrue(user.notifyOfMessages())
+        this.notifyMobileOfMessages = user.notifyMobileOfMessages().isTrue()
+        this.notifyOfMessages = user.notifyOfMessages().isTrue()
 
-        toggleImageButtonIconColor(messages_phone_icon, this.notifyMobileOfMessages, true)
-        toggleImageButtonIconColor(messages_mail_icon, this.notifyOfMessages)
+        toggleImageButtonIconColor(binding.messagesPhoneIcon, this.notifyMobileOfMessages, true)
+        toggleImageButtonIconColor(binding.messagesMailIcon, this.notifyOfMessages)
     }
 
     private fun displayPostLikesNotificationSettings(user: User) {
-        this.notifyMobileOfPostLikes = isTrue(user.notifyMobileOfPostLikes())
+        this.notifyMobileOfPostLikes = user.notifyMobileOfPostLikes().isTrue()
 
-        toggleImageButtonIconColor(post_likes_phone_icon, this.notifyMobileOfPostLikes, true)
+        toggleImageButtonIconColor(binding.postLikesPhoneIcon, this.notifyMobileOfPostLikes, true)
     }
 
     private fun displayUpdatesNotificationSettings(user: User) {
-        this.notifyMobileOfUpdates = isTrue(user.notifyMobileOfUpdates())
-        this.notifyOfUpdates = isTrue(user.notifyOfUpdates())
+        this.notifyMobileOfUpdates = user.notifyMobileOfUpdates().isTrue()
+        this.notifyOfUpdates = user.notifyOfUpdates().isTrue()
 
-        toggleImageButtonIconColor(project_updates_phone_icon, this.notifyMobileOfUpdates, true)
-        toggleImageButtonIconColor(project_updates_mail_icon, this.notifyOfUpdates)
+        toggleImageButtonIconColor(
+            binding.projectUpdatesPhoneIcon,
+            this.notifyMobileOfUpdates,
+            true
+        )
+        toggleImageButtonIconColor(binding.projectUpdatesMailIcon, this.notifyOfUpdates)
     }
 
     private fun getEnabledColorResId(enabled: Boolean): Int {
@@ -214,104 +267,129 @@ class NotificationsActivity : BaseActivity<NotificationsViewModel.ViewModel>() {
     }
 
     private fun setUpClickListeners() {
-        manage_project_notifications.setOnClickListener {
+        binding.manageProjectNotifications.setOnClickListener {
             startProjectNotificationsSettingsActivity()
         }
 
-        backings_mail_icon.setOnClickListener {
+        binding.backingsMailIcon.setOnClickListener {
             this.viewModel.inputs.notifyOfBackings(!this.notifyOfBackings)
         }
 
-        backings_phone_icon.setOnClickListener {
+        binding.backingsPhoneIcon.setOnClickListener {
             this.viewModel.inputs.notifyMobileOfBackings(!this.notifyMobileOfBackings)
         }
 
-        backings_row.setOnClickListener {
-            AnimationUtils.notificationBounceAnimation(backings_phone_icon, backings_mail_icon)
+        binding.backingsRow.setOnClickListener {
+            AnimationUtils.notificationBounceAnimation(
+                binding.backingsPhoneIcon,
+                binding.backingsMailIcon
+            )
         }
 
-        comments_mail_icon.setOnClickListener {
+        binding.commentsMailIcon.setOnClickListener {
             this.viewModel.inputs.notifyOfComments(!this.notifyOfComments)
         }
 
-        comments_phone_icon.setOnClickListener {
+        binding.commentsPhoneIcon.setOnClickListener {
             this.viewModel.inputs.notifyMobileOfComments(!this.notifyMobileOfComments)
         }
 
-        comment_replies_mail_icon.setOnClickListener {
+        binding.commentRepliesMailIcon.setOnClickListener {
             this.viewModel.inputs.notifyOfCommentReplies(!this.notifyMobileOfCommentReplies)
         }
 
-        comment_replies_row.setOnClickListener {
-            AnimationUtils.notificationBounceAnimation(null, comment_replies_mail_icon)
+        binding.commentRepliesRow.setOnClickListener {
+            AnimationUtils.notificationBounceAnimation(null, binding.commentRepliesMailIcon)
         }
 
-        comments_row.setOnClickListener {
-            AnimationUtils.notificationBounceAnimation(comments_phone_icon, comments_mail_icon)
+        binding.commentsRow.setOnClickListener {
+            AnimationUtils.notificationBounceAnimation(
+                binding.commentsPhoneIcon,
+                binding.commentsMailIcon
+            )
         }
 
-        creator_edu_mail_icon.setOnClickListener {
+        binding.creatorEduMailIcon.setOnClickListener {
             this.viewModel.inputs.notifyOfCreatorEdu(!this.notifyOfCreatorEdu)
         }
 
-        creator_edu_phone_icon.setOnClickListener {
+        binding.creatorEduPhoneIcon.setOnClickListener {
             this.viewModel.inputs.notifyMobileOfCreatorEdu(!this.notifyMobileOfCreatorEdu)
         }
 
-        creator_edu_row.setOnClickListener {
-            AnimationUtils.notificationBounceAnimation(creator_edu_phone_icon, creator_edu_mail_icon)
+        binding.creatorEduRow.setOnClickListener {
+            AnimationUtils.notificationBounceAnimation(
+                binding.creatorEduPhoneIcon,
+                binding.creatorEduMailIcon
+            )
         }
 
-        friend_activity_mail_icon.setOnClickListener {
+        binding.friendActivityMailIcon.setOnClickListener {
             this.viewModel.inputs.notifyOfFriendActivity(!this.notifyOfFriendActivity)
         }
 
-        friend_activity_phone_icon.setOnClickListener {
+        binding.friendActivityPhoneIcon.setOnClickListener {
             this.viewModel.inputs.notifyMobileOfFriendActivity(!this.notifyMobileOfFriendActivity)
         }
 
-        friends_back_project_row.setOnClickListener {
-            AnimationUtils.notificationBounceAnimation(friend_activity_phone_icon, friend_activity_mail_icon)
+        binding.friendsBackProjectRow.setOnClickListener {
+            AnimationUtils.notificationBounceAnimation(
+                binding.friendActivityPhoneIcon,
+                binding.friendActivityMailIcon
+            )
         }
 
-        messages_mail_icon.setOnClickListener {
+        binding.messagesMailIcon.setOnClickListener {
             this.viewModel.inputs.notifyOfMessages(!this.notifyOfMessages)
         }
 
-        messages_phone_icon.setOnClickListener {
+        binding.messagesPhoneIcon.setOnClickListener {
             this.viewModel.inputs.notifyMobileOfMessages(!this.notifyMobileOfMessages)
         }
 
-        messages_notification_row.setOnClickListener {
-            AnimationUtils.notificationBounceAnimation(messages_phone_icon, messages_mail_icon)
+        binding.messagesNotificationRow.setOnClickListener {
+            AnimationUtils.notificationBounceAnimation(
+                binding.messagesPhoneIcon,
+                binding.messagesMailIcon
+            )
         }
 
-        new_followers_mail_icon.setOnClickListener {
+        binding.newFollowersMailIcon.setOnClickListener {
             this.viewModel.inputs.notifyOfFollower(!this.notifyOfFollower)
         }
 
-        new_followers_phone_icon.setOnClickListener {
+        binding.newFollowersPhoneIcon.setOnClickListener {
             this.viewModel.inputs.notifyMobileOfFollower(!this.notifyMobileOfFollower)
         }
 
-        new_followers_row.setOnClickListener {
-            AnimationUtils.notificationBounceAnimation(new_followers_phone_icon, new_followers_mail_icon)
+        binding.newFollowersRow.setOnClickListener {
+            AnimationUtils.notificationBounceAnimation(
+                binding.newFollowersPhoneIcon,
+                binding.newFollowersMailIcon
+            )
         }
 
-        post_likes_phone_icon.setOnClickListener {
+        binding.postLikesPhoneIcon.setOnClickListener {
             this.viewModel.inputs.notifyMobileOfPostLikes(!this.notifyMobileOfPostLikes)
         }
 
-        project_updates_mail_icon.setOnClickListener {
+        binding.projectUpdatesMailIcon.setOnClickListener {
             this.viewModel.inputs.notifyOfUpdates(!this.notifyOfUpdates)
         }
 
-        project_updates_phone_icon.setOnClickListener {
+        binding.projectUpdatesPhoneIcon.setOnClickListener {
             this.viewModel.inputs.notifyMobileOfUpdates(!this.notifyMobileOfUpdates)
         }
 
-        project_updates_row.setOnClickListener {
-            AnimationUtils.notificationBounceAnimation(project_updates_phone_icon, project_updates_mail_icon)
+        binding.marketingUpdatesPhoneIcon.setOnClickListener {
+            this.viewModel.inputs.notifyMobileOfMarketingUpdate(!this.notifyMobileOfMarketingUpdates)
+        }
+
+        binding.projectUpdatesRow.setOnClickListener {
+            AnimationUtils.notificationBounceAnimation(
+                binding.projectUpdatesPhoneIcon,
+                binding.projectUpdatesMailIcon
+            )
         }
     }
 
@@ -319,7 +397,11 @@ class NotificationsActivity : BaseActivity<NotificationsViewModel.ViewModel>() {
         startActivity(Intent(this, ProjectNotificationSettingsActivity::class.java))
     }
 
-    private fun toggleImageButtonIconColor(imageButton: ImageButton, enabled: Boolean, typeMobile: Boolean = false) {
+    private fun toggleImageButtonIconColor(
+        imageButton: ImageButton,
+        enabled: Boolean,
+        typeMobile: Boolean = false
+    ) {
         val color = getEnabledColorResId(enabled)
         imageButton.setColorFilter(ContextCompat.getColor(this, color))
 
@@ -327,5 +409,10 @@ class NotificationsActivity : BaseActivity<NotificationsViewModel.ViewModel>() {
         imageButton.setBackgroundResource(background)
 
         setContentDescription(imageButton, enabled, typeMobile)
+    }
+
+    override fun onDestroy() {
+        disposables.clear()
+        super.onDestroy()
     }
 }

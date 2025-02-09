@@ -3,22 +3,31 @@ package com.kickstarter.ui.activities
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import androidx.activity.ComponentActivity
+import androidx.activity.viewModels
 import androidx.appcompat.app.AlertDialog
+import androidx.core.view.isGone
 import com.kickstarter.R
-import com.kickstarter.libs.BaseActivity
-import com.kickstarter.libs.qualifiers.RequiresActivityViewModel
-import com.kickstarter.libs.utils.BooleanUtils.isFalse
-import com.kickstarter.libs.utils.BooleanUtils.isTrue
+import com.kickstarter.databinding.ActivityPrivacyBinding
 import com.kickstarter.libs.utils.Secrets
 import com.kickstarter.libs.utils.SwitchCompatUtils
 import com.kickstarter.libs.utils.ViewUtils
+import com.kickstarter.libs.utils.extensions.addToDisposable
+import com.kickstarter.libs.utils.extensions.getEnvironment
+import com.kickstarter.libs.utils.extensions.isFalse
+import com.kickstarter.libs.utils.extensions.isTrue
 import com.kickstarter.models.User
+import com.kickstarter.utils.WindowInsetsUtil
 import com.kickstarter.viewmodels.PrivacyViewModel
-import kotlinx.android.synthetic.main.activity_privacy.*
-import rx.android.schedulers.AndroidSchedulers
+import io.reactivex.android.schedulers.AndroidSchedulers
+import io.reactivex.disposables.CompositeDisposable
 
-@RequiresActivityViewModel(PrivacyViewModel.ViewModel::class)
-class PrivacyActivity : BaseActivity<PrivacyViewModel.ViewModel>() {
+class PrivacyActivity : ComponentActivity() {
+
+    private lateinit var viewModelFactory: PrivacyViewModel.Factory
+    private val viewModel: PrivacyViewModel.PrivacyViewModel by viewModels {
+        viewModelFactory
+    }
 
     private val cancelString = R.string.Cancel
     private val unableToSaveString = R.string.profile_settings_error
@@ -26,61 +35,75 @@ class PrivacyActivity : BaseActivity<PrivacyViewModel.ViewModel>() {
 
     private var followingConfirmationDialog: AlertDialog? = null
 
+    private val disposables = CompositeDisposable()
+
+    private lateinit var binding: ActivityPrivacyBinding
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_privacy)
+        binding = ActivityPrivacyBinding.inflate(layoutInflater)
+        WindowInsetsUtil.manageEdgeToEdge(
+            window,
+            binding.root
+        )
+
+        getEnvironment()?.let { env ->
+            viewModelFactory = PrivacyViewModel.Factory(env)
+        }
+
+        setContentView(binding.root)
 
         this.viewModel.outputs.hideConfirmFollowingOptOutPrompt()
-                .compose(bindToLifecycle())
-                .observeOn(AndroidSchedulers.mainThread())
-                .subscribe { _ -> SwitchCompatUtils.setCheckedWithoutAnimation(following_switch, true) }
+            .observeOn(AndroidSchedulers.mainThread())
+            .subscribe { SwitchCompatUtils.setCheckedWithoutAnimation(binding.followingSwitch, true) }
+            .addToDisposable(disposables)
 
         this.viewModel.outputs.showConfirmFollowingOptOutPrompt()
-                .compose(bindToLifecycle())
-                .observeOn(AndroidSchedulers.mainThread())
-                .subscribe { _ -> lazyFollowingOptOutConfirmationDialog().show() }
+            .observeOn(AndroidSchedulers.mainThread())
+            .subscribe { lazyFollowingOptOutConfirmationDialog().show() }
+            .addToDisposable(disposables)
 
         this.viewModel.errors.unableToSavePreferenceError()
-                .compose(bindToLifecycle())
-                .observeOn(AndroidSchedulers.mainThread())
-                .subscribe { _ -> ViewUtils.showToast(this, getString(this.unableToSaveString)) }
+            .observeOn(AndroidSchedulers.mainThread())
+            .subscribe { ViewUtils.showToast(this, getString(this.unableToSaveString)) }
+            .addToDisposable(disposables)
 
         this.viewModel.outputs.user()
-                .compose(bindToLifecycle())
-                .observeOn(AndroidSchedulers.mainThread())
-                .subscribe { this.displayPreferences(it) }
+            .observeOn(AndroidSchedulers.mainThread())
+            .subscribe { this.displayPreferences(it) }
+            .addToDisposable(disposables)
 
         this.viewModel.outputs.hidePrivateProfileRow()
-                .compose(bindToLifecycle())
-                .observeOn(AndroidSchedulers.mainThread())
-                .subscribe {
-                    ViewUtils.setGone(private_profile_row, it)
-                    ViewUtils.setGone(private_profile_text_view, it)
-                    ViewUtils.setGone(public_profile_text_view, it)
-                }
+            .observeOn(AndroidSchedulers.mainThread())
+            .subscribe {
+                binding.privateProfileRow.isGone = it
+                binding.privateProfileTextView.isGone = it
+                binding.publicProfileTextView.isGone = it
+            }
+            .addToDisposable(disposables)
 
-        following_switch.setOnClickListener { this.viewModel.inputs.optIntoFollowing(following_switch.isChecked) }
-        private_profile_switch.setOnClickListener { this.viewModel.inputs.showPublicProfile(private_profile_switch.isChecked) }
-        recommendations_switch.setOnClickListener { this.viewModel.inputs.optedOutOfRecommendations(recommendations_switch.isChecked) }
-        settings_request_data.setOnClickListener { showPrivacyWebpage(Secrets.Privacy.REQUEST_DATA) }
-        settings_delete_account.setOnClickListener { showPrivacyWebpage(Secrets.Privacy.DELETE_ACCOUNT) }
+        binding.followingSwitch.setOnClickListener { this.viewModel.inputs.optIntoFollowing(binding.followingSwitch.isChecked) }
+        binding.privateProfileSwitch.setOnClickListener { this.viewModel.inputs.showPublicProfile(binding.privateProfileSwitch.isChecked) }
+        binding.recommendationsSwitch.setOnClickListener { this.viewModel.inputs.optedOutOfRecommendations(binding.recommendationsSwitch.isChecked) }
+        binding.settingsRequestData.setOnClickListener { showPrivacyWebpage(Secrets.Privacy.TRANSCEND_PRIVACY_REQUEST_FLOW) }
+        binding.settingsDeleteAccount.setOnClickListener { showPrivacyWebpage(Secrets.Privacy.TRANSCEND_PRIVACY_REQUEST_FLOW) }
     }
 
     private fun displayPreferences(user: User) {
-        SwitchCompatUtils.setCheckedWithoutAnimation(following_switch, isTrue(user.social()))
-        SwitchCompatUtils.setCheckedWithoutAnimation(private_profile_switch, isFalse(user.showPublicProfile()))
-        SwitchCompatUtils.setCheckedWithoutAnimation(recommendations_switch, isFalse(user.optedOutOfRecommendations()))
+        SwitchCompatUtils.setCheckedWithoutAnimation(binding.followingSwitch, user.social().isTrue())
+        SwitchCompatUtils.setCheckedWithoutAnimation(binding.privateProfileSwitch, user.showPublicProfile().isFalse())
+        SwitchCompatUtils.setCheckedWithoutAnimation(binding.recommendationsSwitch, user.optedOutOfRecommendations().isFalse())
     }
 
     private fun lazyFollowingOptOutConfirmationDialog(): AlertDialog {
         if (this.followingConfirmationDialog == null) {
             this.followingConfirmationDialog = AlertDialog.Builder(this)
-                    .setCancelable(false)
-                    .setTitle(getString(R.string.Are_you_sure))
-                    .setMessage(getString(R.string.If_you_turn_following_off))
-                    .setNegativeButton(this.cancelString) { _, _ -> this.viewModel.inputs.optOutOfFollowing(false) }
-                    .setPositiveButton(this.yesTurnOffString) { _, _ -> this.viewModel.inputs.optOutOfFollowing(true) }
-                    .create()
+                .setCancelable(false)
+                .setTitle(getString(R.string.Are_you_sure))
+                .setMessage(getString(R.string.If_you_turn_following_off))
+                .setNegativeButton(this.cancelString) { _, _ -> this.viewModel.inputs.optOutOfFollowing(false) }
+                .setPositiveButton(this.yesTurnOffString) { _, _ -> this.viewModel.inputs.optOutOfFollowing(true) }
+                .create()
         }
         return this.followingConfirmationDialog!!
     }
@@ -88,5 +111,10 @@ class PrivacyActivity : BaseActivity<PrivacyViewModel.ViewModel>() {
     private fun showPrivacyWebpage(url: String) {
         val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
         startActivity(intent)
+    }
+
+    override fun onDestroy() {
+        disposables.clear()
+        super.onDestroy()
     }
 }

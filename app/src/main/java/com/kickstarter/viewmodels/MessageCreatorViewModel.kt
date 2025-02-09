@@ -1,21 +1,23 @@
 package com.kickstarter.viewmodels
 
-import androidx.annotation.NonNull
+import android.content.Intent
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
 import com.kickstarter.R
-import com.kickstarter.libs.ActivityViewModel
 import com.kickstarter.libs.Environment
-import com.kickstarter.libs.rx.transformers.Transformers.*
-import com.kickstarter.libs.utils.ObjectUtils
-import com.kickstarter.libs.utils.StringUtils
+import com.kickstarter.libs.rx.transformers.Transformers.errorsV2
+import com.kickstarter.libs.rx.transformers.Transformers.takeWhenV2
+import com.kickstarter.libs.rx.transformers.Transformers.valuesV2
+import com.kickstarter.libs.utils.extensions.addToDisposable
+import com.kickstarter.libs.utils.extensions.isNotNull
+import com.kickstarter.libs.utils.extensions.isPresent
 import com.kickstarter.models.MessageThread
 import com.kickstarter.models.Project
-import com.kickstarter.services.ApiClientType
-import com.kickstarter.services.ApolloClientType
 import com.kickstarter.ui.IntentKey
-import com.kickstarter.ui.activities.MessageCreatorActivity
-import rx.Observable
-import rx.subjects.BehaviorSubject
-import rx.subjects.PublishSubject
+import io.reactivex.Observable
+import io.reactivex.disposables.CompositeDisposable
+import io.reactivex.subjects.BehaviorSubject
+import io.reactivex.subjects.PublishSubject
 
 interface MessageCreatorViewModel {
     interface Inputs {
@@ -46,10 +48,10 @@ interface MessageCreatorViewModel {
         fun showSentSuccess(): Observable<Int>
     }
 
-    class ViewModel(environment: Environment) : ActivityViewModel<MessageCreatorActivity>(environment), Inputs, Outputs {
+    class MessageCreatorViewModel(private val environment: Environment, private val intent: Intent? = null) : ViewModel(), Inputs, Outputs {
 
         private val messageBodyChanged = PublishSubject.create<String>()
-        private val sendButtonClicked = PublishSubject.create<Void>()
+        private val sendButtonClicked = PublishSubject.create<Unit>()
 
         private val creatorName = BehaviorSubject.create<String>()
         private val progressBarIsVisible = BehaviorSubject.create<Boolean>()
@@ -58,78 +60,96 @@ interface MessageCreatorViewModel {
         private val showSentError = BehaviorSubject.create<Int>()
         private val showSentSuccess = BehaviorSubject.create<Int>()
 
-        private val apiClient: ApiClientType = environment.apiClient()
-        private val apolloClient: ApolloClientType = environment.apolloClient()
+        private val apiClient = requireNotNull(environment.apiClientV2())
+        private val apolloClient = requireNotNull(environment.apolloClientV2())
+
+        private val disposables = CompositeDisposable()
 
         val inputs: Inputs = this
         val outputs: Outputs = this
 
+        private fun intent() = intent?.let { Observable.just(it) } ?: Observable.empty()
+
+        private fun getProjectFromIntent(intent: Intent?) = intent?.getParcelableExtra(IntentKey.PROJECT) as Project?
         init {
             val project = intent()
-                    .map { it.getParcelableExtra(IntentKey.PROJECT) as Project }
+                .filter { getProjectFromIntent(it) != null }
+                .map { requireNotNull(getProjectFromIntent(it)) }
 
             project
-                    .map { it.creator().name() }
-                    .compose(bindToLifecycle())
-                    .subscribe(this.creatorName)
+                .filter { it.creator().name().isNotNull() }
+                .map { it.creator().name() }
+                .subscribe {
+                    this.creatorName.onNext(it)
+                }
+                .addToDisposable(disposables)
 
-            val sendMessage = Observable.combineLatest(project, this.messageBodyChanged.startWith(""))
-            { p, u -> SendMessage(p, u) }
+            val sendMessage = Observable.combineLatest(project, this.messageBodyChanged.startWith("")) { p, u -> SendMessage(p, u) }
 
             this.messageBodyChanged
-                    .map { StringUtils.isPresent(it) }
-                    .distinctUntilChanged()
-                    .subscribe(this.sendButtonIsEnabled)
+                .map { it.isPresent() }
+                .distinctUntilChanged()
+                .subscribe {
+                    this.sendButtonIsEnabled.onNext(it)
+                }
+                .addToDisposable(disposables)
 
             val sendMessageNotification = sendMessage
-                    .compose(takeWhen<SendMessage, Void>(this.sendButtonClicked))
-                    .switchMap { sendMessage(it).materialize() }
-                    .compose(bindToLifecycle())
-                    .share()
+                .compose(takeWhenV2<SendMessage, Unit>(this.sendButtonClicked))
+                .switchMap { sendMessage(it).materialize() }
+                .share()
 
             sendMessageNotification
-                    .compose(errors())
-                    .map { R.string.social_error_could_not_send_message_backer }
-                    .subscribe {
-                        this.showSentError.onNext(it)
-                        this.progressBarIsVisible.onNext(false)
-                        this.sendButtonIsEnabled.onNext(true)
-                    }
+                .compose(errorsV2())
+                .map { R.string.social_error_could_not_send_message_backer }
+                .subscribe {
+                    this.showSentError.onNext(it)
+                    this.progressBarIsVisible.onNext(false)
+                    this.sendButtonIsEnabled.onNext(true)
+                }
+                .addToDisposable(disposables)
 
             sendMessageNotification
-                    .compose(values())
-                    .switchMap { fetchThread(it) }
-                    .filter(ObjectUtils::isNotNull)
-                    .subscribe(this.showMessageThread)
-
-            project
-                    .compose(bindToLifecycle())
-                    .subscribe { this.koala.trackViewedMessageCreatorModal(it) }
-
+                .compose(valuesV2())
+                .switchMap { fetchThread(it) }
+                .filter { it.isNotNull() }
+                .subscribe {
+                    this.showMessageThread.onNext(it)
+                }
+                .addToDisposable(disposables)
         }
 
         private fun fetchThread(conversationId: Long): Observable<MessageThread> {
             val fetchThreadNotification = this.apiClient.fetchMessagesForThread(conversationId)
-                    .compose(bindToLifecycle())
-                    .materialize()
-                    .share()
+                .materialize()
+                .share()
 
             fetchThreadNotification
-                    .compose(errors())
-                    .map { R.string.Your_message_has_been_sent }
-                    .subscribe(this.showSentSuccess)
+                .compose(errorsV2())
+                .map { R.string.Your_message_has_been_sent }
+                .subscribe {
+                    this.showSentSuccess.onNext(it)
+                }
+                .addToDisposable(disposables)
 
             return fetchThreadNotification
-                    .compose(values())
-                    .map { it.messageThread() }
+                .compose(valuesV2())
+                .filter { it.messageThread().isNotNull() }
+                .map { it.messageThread() }
         }
 
         private fun sendMessage(sendMessage: SendMessage): Observable<Long> {
             return this.apolloClient.sendMessage(sendMessage.project, sendMessage.project.creator(), sendMessage.body)
-                    .doOnSubscribe {
-                        this.progressBarIsVisible.onNext(true)
-                        this.sendButtonIsEnabled.onNext(false)
-                    }
+                .doOnSubscribe {
+                    this.progressBarIsVisible.onNext(true)
+                    this.sendButtonIsEnabled.onNext(false)
+                }
+        }
+
+        override fun onCleared() {
+            apolloClient.cleanDisposables()
+            disposables.clear()
+            super.onCleared()
         }
 
         override fun messageBodyChanged(messageBody: String) {
@@ -137,27 +157,27 @@ interface MessageCreatorViewModel {
         }
 
         override fun sendButtonClicked() {
-            this.sendButtonClicked.onNext(null)
+            this.sendButtonClicked.onNext(Unit)
         }
 
-        @NonNull
         override fun creatorName(): Observable<String> = this.creatorName
 
-        @NonNull
         override fun progressBarIsVisible(): Observable<Boolean> = this.progressBarIsVisible
 
-        @NonNull
         override fun sendButtonIsEnabled(): Observable<Boolean> = this.sendButtonIsEnabled
 
-        @NonNull
         override fun showMessageThread(): Observable<MessageThread> = this.showMessageThread
 
-        @NonNull
         override fun showSentError(): Observable<Int> = this.showSentError
 
-        @NonNull
         override fun showSentSuccess(): Observable<Int> = this.showSentSuccess
 
         data class SendMessage(val project: Project, val body: String)
+    }
+
+    class Factory(private val environment: Environment, private val intent: Intent) : ViewModelProvider.Factory {
+        override fun <T : ViewModel> create(modelClass: Class<T>): T {
+            return MessageCreatorViewModel(environment, intent) as T
+        }
     }
 }

@@ -1,81 +1,219 @@
 package com.kickstarter.viewmodels
 
+import android.content.Intent
 import com.kickstarter.KSRobolectricTestCase
+import com.kickstarter.libs.featureflag.FlagKey
+import com.kickstarter.libs.utils.extensions.addToDisposable
+import com.kickstarter.mock.MockFeatureFlagClient
 import com.kickstarter.mock.factories.ApiExceptionFactory
-import com.kickstarter.mock.services.MockApiClient
+import com.kickstarter.mock.services.MockApiClientV2
 import com.kickstarter.models.User
+import com.kickstarter.ui.IntentKey
+import com.kickstarter.ui.data.ResetPasswordScreenState
+import io.reactivex.Observable
+import io.reactivex.disposables.CompositeDisposable
+import io.reactivex.subscribers.TestSubscriber
+import org.junit.After
 import org.junit.Test
-import rx.Observable
-import rx.observers.TestSubscriber
 
 class ResetPasswordViewModelTest : KSRobolectricTestCase() {
 
-    @Test
-    fun testResetPasswordViewModel_formValidation() {
-        val vm = ResetPasswordViewModel.ViewModel(environment())
-        val test = TestSubscriber<Boolean>()
-
-        koalaTest.assertValues("Forgot Password View")
-
-        vm.outputs.isFormValid().subscribe(test)
-
-        vm.inputs.email("incorrect@kickstarter")
-        test.assertValues(false)
-
-        vm.inputs.email("hello@kickstarter.com")
-        test.assertValues(false, true)
-
-        koalaTest.assertValueCount(1)
-        this.lakeTest.assertValue("Forgot Password Page Viewed")
-    }
+    private val disposables = CompositeDisposable()
 
     @Test
     fun testResetPasswordViewModel_resetSuccess() {
-        val vm = ResetPasswordViewModel.ViewModel(environment())
-        val test = TestSubscriber<Void>()
+        val vm = ResetPasswordViewModel.ResetPasswordViewModel(environment().toBuilder().apiClientV2(MockApiClientV2()).build())
+        val resetLoginPasswordSuccess = TestSubscriber<Unit>()
+        val resetFacebookLoginPasswordSuccess = TestSubscriber<Unit>()
+        val resetPasswordScreenStatus = TestSubscriber<ResetPasswordScreenState>()
 
-        koalaTest.assertValues("Forgot Password View")
-
-        vm.outputs.resetSuccess().subscribe(test)
-
-        vm.inputs.resetPasswordClick()
-        test.assertNoValues()
-
-        vm.inputs.email("hello@kickstarter.com")
-        test.assertNoValues()
+        vm.outputs.resetLoginPasswordSuccess().subscribe { resetLoginPasswordSuccess.onNext(it) }.addToDisposable(disposables)
+        vm.outputs.resetFacebookLoginPasswordSuccess().subscribe { resetFacebookLoginPasswordSuccess.onNext(it) }.addToDisposable(disposables)
+        vm.outputs.resetPasswordScreenStatus().subscribe { resetPasswordScreenStatus.onNext(it) }.addToDisposable(disposables)
 
         vm.inputs.resetPasswordClick()
-        test.assertValueCount(1)
+        resetLoginPasswordSuccess.assertNoValues()
+        resetFacebookLoginPasswordSuccess.assertNoValues()
+        resetPasswordScreenStatus.assertNoValues()
 
-        koalaTest.assertValues("Forgot Password View", "Forgot Password Requested")
-        this.lakeTest.assertValue("Forgot Password Page Viewed")
+        vm.setEmail("hello@kickstarter.com")
+        resetLoginPasswordSuccess.assertNoValues()
+        resetFacebookLoginPasswordSuccess.assertNoValues()
+        resetPasswordScreenStatus.assertNoValues()
+
+        vm.inputs.resetPasswordClick()
+        resetLoginPasswordSuccess.assertValueCount(1)
+        resetFacebookLoginPasswordSuccess.assertNoValues()
+        resetPasswordScreenStatus.assertNoValues()
+    }
+
+    @Test
+    fun testResetFacebookPasswordViewModel_resetFailed_withDisabled_feature_flag() {
+        val vm = ResetPasswordViewModel.ResetPasswordViewModel(environment().toBuilder().apiClientV2(MockApiClientV2()).build())
+        val resetLoginPasswordSuccess = TestSubscriber<Unit>()
+        val resetFacebookLoginPasswordSuccess = TestSubscriber<Unit>()
+        val resetPasswordScreenStatus = TestSubscriber<ResetPasswordScreenState>()
+
+        vm.outputs.resetLoginPasswordSuccess().subscribe { resetLoginPasswordSuccess.onNext(it) }.addToDisposable(disposables)
+        vm.outputs.resetFacebookLoginPasswordSuccess().subscribe { resetFacebookLoginPasswordSuccess.onNext(it) }.addToDisposable(disposables)
+        vm.outputs.resetPasswordScreenStatus().subscribe { resetPasswordScreenStatus.onNext(it) }.addToDisposable(disposables)
+
+        vm.inputs.resetPasswordClick()
+        resetLoginPasswordSuccess.assertNoValues()
+        resetFacebookLoginPasswordSuccess.assertNoValues()
+        resetPasswordScreenStatus.assertNoValues()
+
+        vm.configureWith(Intent().putExtra(IntentKey.RESET_PASSWORD_FACEBOOK_LOGIN, true))
+
+        vm.setEmail("hello@kickstarter.com")
+        resetLoginPasswordSuccess.assertNoValues()
+        resetFacebookLoginPasswordSuccess.assertNoValues()
+        resetPasswordScreenStatus.assertNoValues()
+
+        vm.inputs.resetPasswordClick()
+        resetLoginPasswordSuccess.assertValueCount(1)
+        resetFacebookLoginPasswordSuccess.assertNoValues()
+        resetPasswordScreenStatus.assertNoValues()
+    }
+
+    @Test
+    fun testResetFacebookPasswordViewModel_resetSuccess() {
+        val mockFeatureFlagClientType: MockFeatureFlagClient =
+            object : MockFeatureFlagClient() {
+                override fun getBoolean(FlagKey: FlagKey): Boolean {
+                    return true
+                }
+            }
+        val environment = environment()
+            .toBuilder()
+            .apiClientV2(MockApiClientV2())
+            .featureFlagClient(mockFeatureFlagClientType)
+            .build()
+
+        val vm = ResetPasswordViewModel.ResetPasswordViewModel(environment)
+        val resetLoginPasswordSuccess = TestSubscriber<Unit>()
+        val resetFacebookLoginPasswordSuccess = TestSubscriber<Unit>()
+        val resetPasswordScreenStatus = TestSubscriber<ResetPasswordScreenState>()
+
+        vm.outputs.resetLoginPasswordSuccess().subscribe { resetLoginPasswordSuccess.onNext(it) }.addToDisposable(disposables)
+        vm.outputs.resetFacebookLoginPasswordSuccess().subscribe { resetFacebookLoginPasswordSuccess.onNext(it) }.addToDisposable(disposables)
+        vm.outputs.resetPasswordScreenStatus().subscribe { resetPasswordScreenStatus.onNext(it) }.addToDisposable(disposables)
+
+        vm.inputs.resetPasswordClick()
+        resetLoginPasswordSuccess.assertNoValues()
+        resetFacebookLoginPasswordSuccess.assertNoValues()
+        resetPasswordScreenStatus.assertNoValues()
+
+        vm.configureWith(Intent().putExtra(IntentKey.RESET_PASSWORD_FACEBOOK_LOGIN, true))
+        vm.setEmail("hello@kickstarter.com")
+        resetLoginPasswordSuccess.assertNoValues()
+        resetFacebookLoginPasswordSuccess.assertNoValues()
+        resetPasswordScreenStatus.assertValue(ResetPasswordScreenState.ResetPassword)
+
+        vm.inputs.resetPasswordClick()
+        resetLoginPasswordSuccess.assertNoValues()
+        resetFacebookLoginPasswordSuccess.assertValueCount(1)
+        resetPasswordScreenStatus.assertValue(ResetPasswordScreenState.ResetPassword)
     }
 
     @Test
     fun testResetPasswordViewModel_resetFailure() {
-        val apiClient = object : MockApiClient() {
+        val apiClient = object : MockApiClientV2() {
             override fun resetPassword(email: String): Observable<User> {
                 return Observable.error(ApiExceptionFactory.badRequestException())
             }
         }
 
         val environment = environment().toBuilder()
-                .apiClient(apiClient)
-                .build()
+            .apiClientV2(apiClient)
+            .build()
 
-        val vm = ResetPasswordViewModel.ViewModel(environment)
+        val vm = ResetPasswordViewModel.ResetPasswordViewModel(environment)
         val errorTest = TestSubscriber<String>()
 
-        koalaTest.assertValues("Forgot Password View")
+        vm.outputs.resetError().subscribe { errorTest.onNext(it) }.addToDisposable(disposables)
 
-        vm.outputs.resetError().subscribe(errorTest)
-
-        vm.inputs.email("hello@kickstarter.com")
+        vm.setEmail("hello@kickstarter.com")
         vm.inputs.resetPasswordClick()
 
         errorTest.assertValue("bad request")
+    }
 
-        koalaTest.assertValues("Forgot Password View", "Forgot Password Errored")
-        this.lakeTest.assertValue("Forgot Password Page Viewed")
+    @Test
+    fun testPrefillEmail() {
+        val preFillEmail = TestSubscriber<String>()
+        val resetPasswordScreenStatus = TestSubscriber<ResetPasswordScreenState>()
+
+        val vm = ResetPasswordViewModel.ResetPasswordViewModel(environment())
+
+        vm.outputs.resetPasswordScreenStatus().subscribe { resetPasswordScreenStatus.onNext(it) }.addToDisposable(disposables)
+        vm.outputs.prefillEmail().subscribe { preFillEmail.onNext(it) }.addToDisposable(disposables)
+
+        // Start the view model with an email to prefill.
+        vm.configureWith(Intent().putExtra(IntentKey.EMAIL, "hello@kickstarter.com"))
+
+        preFillEmail.assertValue("hello@kickstarter.com")
+        resetPasswordScreenStatus.assertValue(ResetPasswordScreenState.ForgetPassword)
+    }
+
+    @Test
+    fun testResetScreenState_ForgetPassword() {
+        val preFillEmail = TestSubscriber<String>()
+        val resetPasswordScreenStatus = TestSubscriber<ResetPasswordScreenState>()
+
+        val mockFeatureFlagClient: MockFeatureFlagClient =
+            object : MockFeatureFlagClient() {
+                override fun getBoolean(FlagKey: FlagKey): Boolean {
+                    return true
+                }
+            }
+
+        val environment = environment()
+            .toBuilder()
+            .featureFlagClient(mockFeatureFlagClient)
+            .build()
+
+        val vm = ResetPasswordViewModel.ResetPasswordViewModel(environment)
+
+        vm.outputs.resetPasswordScreenStatus().subscribe { resetPasswordScreenStatus.onNext(it) }.addToDisposable(disposables)
+        vm.outputs.prefillEmail().subscribe { preFillEmail.onNext(it) }.addToDisposable(disposables)
+
+        // Start the view model with an email to prefill.
+        vm.configureWith(Intent().putExtra(IntentKey.EMAIL, "hello@kickstarter.com"))
+
+        preFillEmail.assertValue("hello@kickstarter.com")
+        resetPasswordScreenStatus.assertValue(ResetPasswordScreenState.ForgetPassword)
+    }
+
+    @Test
+    fun testResetScreenState_ResetPassword() {
+        val preFillEmail = TestSubscriber<String>()
+        val resetPasswordScreenStatus = TestSubscriber<ResetPasswordScreenState>()
+
+        val mockFeatureFlagClientType: MockFeatureFlagClient =
+            object : MockFeatureFlagClient() {
+                override fun getBoolean(FlagKey: FlagKey): Boolean {
+                    return true
+                }
+            }
+
+        val environment = environment()
+            .toBuilder()
+            .featureFlagClient(mockFeatureFlagClientType)
+            .build()
+
+        val vm = ResetPasswordViewModel.ResetPasswordViewModel(environment)
+        vm.configureWith(Intent().putExtra(IntentKey.RESET_PASSWORD_FACEBOOK_LOGIN, true))
+
+        vm.outputs.resetPasswordScreenStatus().subscribe { resetPasswordScreenStatus.onNext(it) }.addToDisposable(disposables)
+        vm.outputs.prefillEmail().subscribe { preFillEmail.onNext(it) }.addToDisposable(disposables)
+
+        preFillEmail.assertNoValues()
+        resetPasswordScreenStatus.assertValue(ResetPasswordScreenState.ResetPassword)
+    }
+
+    @After
+    fun clear() {
+        disposables.clear()
     }
 }

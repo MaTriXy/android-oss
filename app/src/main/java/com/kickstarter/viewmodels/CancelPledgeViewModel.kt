@@ -1,18 +1,24 @@
 package com.kickstarter.viewmodels
 
+import android.os.Bundle
 import android.util.Pair
-import androidx.annotation.NonNull
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
 import com.kickstarter.libs.Environment
-import com.kickstarter.libs.FragmentViewModel
-import com.kickstarter.libs.rx.transformers.Transformers.*
+import com.kickstarter.libs.rx.transformers.Transformers.combineLatestPair
+import com.kickstarter.libs.rx.transformers.Transformers.errorsV2
+import com.kickstarter.libs.rx.transformers.Transformers.ignoreValuesV2
+import com.kickstarter.libs.rx.transformers.Transformers.valuesV2
+import com.kickstarter.libs.utils.extensions.addToDisposable
+import com.kickstarter.libs.utils.extensions.isNotNull
 import com.kickstarter.models.Backing
 import com.kickstarter.models.Project
 import com.kickstarter.ui.ArgumentsKey
-import com.kickstarter.ui.fragments.CancelPledgeFragment
-import rx.Notification
-import rx.Observable
-import rx.subjects.BehaviorSubject
-import rx.subjects.PublishSubject
+import io.reactivex.Notification
+import io.reactivex.Observable
+import io.reactivex.disposables.CompositeDisposable
+import io.reactivex.subjects.BehaviorSubject
+import io.reactivex.subjects.PublishSubject
 import java.math.RoundingMode
 
 interface CancelPledgeViewModel {
@@ -26,10 +32,10 @@ interface CancelPledgeViewModel {
 
     interface Outputs {
         /** Emits when the fragment should be dismissed. */
-        fun dismiss(): Observable<Void>
+        fun dismiss(): Observable<Unit>
 
         /** Emits when the backing has successfully been canceled. */
-        fun success(): Observable<Void>
+        fun success(): Observable<Unit>
 
         /** Emits when the pledged amount and project name. */
         fun pledgeAmountAndProjectName(): Observable<Pair<String, String>>
@@ -44,95 +50,105 @@ interface CancelPledgeViewModel {
         fun showCancelError(): Observable<String>
 
         /** Emits when the cancel call fails because of a generic server error. */
-        fun showServerError(): Observable<Void>
+        fun showServerError(): Observable<Unit>
     }
 
-    class ViewModel(@NonNull val environment: Environment) : FragmentViewModel<CancelPledgeFragment>(environment), Inputs, Outputs {
+    class CancelPledgeViewModel(private val environment: Environment, private val bundle: Bundle? = null) : ViewModel(), Inputs, Outputs {
 
         private val confirmCancellationClicked = PublishSubject.create<String>()
-        private val goBackButtonClicked = PublishSubject.create<Void>()
+        private val goBackButtonClicked = PublishSubject.create<Unit>()
 
         private val cancelButtonIsVisible = BehaviorSubject.create<Boolean>()
-        private val dismiss = BehaviorSubject.create<Void>()
+        private val dismiss = BehaviorSubject.create<Unit>()
         private val pledgeAmountAndProjectName = BehaviorSubject.create<Pair<String, String>>()
         private val progressBarIsVisible = BehaviorSubject.create<Boolean>()
         private val showCancelError = PublishSubject.create<String>()
-        private val showServerError = PublishSubject.create<Void>()
-        private val success = BehaviorSubject.create<Void>()
+        private val showServerError = PublishSubject.create<Unit>()
+        private val success = BehaviorSubject.create<Unit>()
 
-        private val apolloClient = environment.apolloClient()
-        private val ksCurrency = environment.ksCurrency()
+        private val apolloClient = requireNotNull(environment.apolloClientV2())
+        private val ksCurrency = requireNotNull(environment.ksCurrency())
 
         val inputs: Inputs = this
         val outputs: Outputs = this
 
+        private val disposables = CompositeDisposable()
+
+        private fun arguments() = bundle?.let { Observable.just(it) } ?: Observable.empty()
+
         init {
 
             val project = arguments()
-                    .map { it.getParcelable(ArgumentsKey.CANCEL_PLEDGE_PROJECT) as Project }
+                .filter { (it.getParcelable(ArgumentsKey.CANCEL_PLEDGE_PROJECT) as Project?).isNotNull() }
+                .map { it.getParcelable(ArgumentsKey.CANCEL_PLEDGE_PROJECT) as Project? }
+                .ofType(Project::class.java)
 
             val backing = project
-                    .map { it.backing() }
-                    .ofType(Backing::class.java)
+                .filter { it.backing().isNotNull() }
+                .map { it.backing() }
+                .ofType(Backing::class.java)
 
             project
-                    .compose<Pair<Project, Backing>>(combineLatestPair(backing))
-                    .map { Pair(this.ksCurrency.format(it.second.amount(), it.first, RoundingMode.HALF_UP), it.first.name()) }
-                    .compose(bindToLifecycle())
-                    .subscribe(this.pledgeAmountAndProjectName)
+                .compose<Pair<Project, Backing>>(combineLatestPair(backing))
+                .map { Pair(this.ksCurrency.format(it.second.amount(), it.first, RoundingMode.HALF_UP), it.first.name()) }
+                .subscribe { this.pledgeAmountAndProjectName.onNext(it) }
+                .addToDisposable(disposables)
 
             val cancelBackingNotification = this.confirmCancellationClicked
-                    .compose<Pair<String, Backing>>(combineLatestPair(backing))
-                    .switchMap { cancelBacking(it.first, it.second) }
-                    .share()
+                .compose<Pair<String, Backing>>(combineLatestPair(backing))
+                .switchMap { cancelBacking(it.first, it.second) }
+                .share()
 
             val cancelBackingResponse = cancelBackingNotification
-                    .compose(values())
+                .compose(valuesV2())
 
             cancelBackingNotification
-                    .compose(errors())
-                    .compose(ignoreValues())
-                    .compose(bindToLifecycle())
-                    .subscribe(this.showServerError)
+                .compose(errorsV2())
+                .compose(ignoreValuesV2())
+                .subscribe { this.showServerError.onNext(it) }
+                .addToDisposable(disposables)
 
             cancelBackingResponse
-                    .filter { it is Boolean && it == false }
-                    .compose(ignoreValues())
-                    .compose(bindToLifecycle())
-                    .subscribe(this.showServerError)
+                .filter { it is Boolean && it == false }
+                .compose(ignoreValuesV2())
+                .subscribe { this.showServerError.onNext(it) }
+                .addToDisposable(disposables)
 
             cancelBackingResponse
-                    .filter { it is Boolean && it == true }
-                    .compose(ignoreValues())
-                    .compose(bindToLifecycle())
-                    .subscribe(this.success)
+                .filter { it is Boolean && it == true }
+                .compose(ignoreValuesV2())
+                .subscribe { this.success.onNext(it) }
+                .addToDisposable(disposables)
 
             cancelBackingResponse
-                    .filter { it is String }
-                    .ofType(String::class.java)
-                    .compose(bindToLifecycle())
-                    .subscribe(this.showCancelError)
+                .filter { it is String }
+                .ofType(String::class.java)
+                .subscribe {
+                    this.showCancelError.onNext(it)
+                }
+                .addToDisposable(disposables)
 
-             this.goBackButtonClicked
-                    .compose(bindToLifecycle())
-                    .subscribe(this.dismiss)
-
-            project
-                    .compose<Project>(takeWhen(this.confirmCancellationClicked))
-                    .compose(bindToLifecycle())
-                    .subscribe { this.koala.trackCancelPledgeButtonClicked(it) }
+            this.goBackButtonClicked
+                .subscribe { this.dismiss.onNext(it) }
+                .addToDisposable(disposables)
         }
 
         private fun cancelBacking(note: String, backing: Backing): Observable<Notification<Any>> {
             return this.apolloClient.cancelBacking(backing, note)
-                    .doOnSubscribe {
-                        this.progressBarIsVisible.onNext(true)
-                        this.cancelButtonIsVisible.onNext(false)
-                    }
-                    .doAfterTerminate {
-                        this.progressBarIsVisible.onNext(false)
-                        this.cancelButtonIsVisible.onNext(true)
-                    }.materialize()
+                .doOnSubscribe {
+                    this.progressBarIsVisible.onNext(true)
+                    this.cancelButtonIsVisible.onNext(false)
+                }
+                .doAfterTerminate {
+                    this.progressBarIsVisible.onNext(false)
+                    this.cancelButtonIsVisible.onNext(true)
+                }.materialize()
+        }
+
+        override fun onCleared() {
+            apolloClient.cleanDisposables()
+            disposables.clear()
+            super.onCleared()
         }
 
         override fun confirmCancellationClicked(note: String) {
@@ -140,14 +156,14 @@ interface CancelPledgeViewModel {
         }
 
         override fun goBackButtonClicked() {
-            this.goBackButtonClicked.onNext(null)
+            this.goBackButtonClicked.onNext(Unit)
         }
 
         override fun cancelButtonIsVisible(): Observable<Boolean> = this.cancelButtonIsVisible
 
-        override fun dismiss(): Observable<Void> = this.dismiss
+        override fun dismiss(): Observable<Unit> = this.dismiss
 
-        override fun success(): Observable<Void> = this.success
+        override fun success(): Observable<Unit> = this.success
 
         override fun pledgeAmountAndProjectName(): Observable<Pair<String, String>> = this.pledgeAmountAndProjectName
 
@@ -155,6 +171,16 @@ interface CancelPledgeViewModel {
 
         override fun showCancelError(): Observable<String> = this.showCancelError
 
-        override fun showServerError(): Observable<Void> = this.showServerError
+        override fun showServerError(): Observable<Unit> = this.showServerError
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    class Factory(private val environment: Environment, private val bundle: Bundle? = null) : ViewModelProvider.Factory {
+        override fun <T : ViewModel> create(modelClass: Class<T>): T {
+            return CancelPledgeViewModel(
+                environment,
+                bundle = bundle
+            ) as T
+        }
     }
 }

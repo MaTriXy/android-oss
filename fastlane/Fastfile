@@ -13,7 +13,7 @@ lane :alpha do
   version_name  = Milkrun::VersionName.new(audience: audience).read
   slack_message = ["🚀",audience,build_type,"|",version_name,version_code,"successfully delivered to Firebase!"].join(' ')
 
-  build_android_app(task: "assembleInternalDebug")
+  build_android_app(task: "assembleInternalDebug -Dorg.gradle.java.home=/usr/lib/jvm/java-17-openjdk-amd64")
 
   firebase_app_distribution(
     app: Milkrun::FirebaseCredentialsExtractor.new.internal_debug,
@@ -23,7 +23,7 @@ lane :alpha do
 
   slack(
     slack_url: Milkrun::SlackWebhookExtractor.new.webhook,
-    message: slack_message
+    pretext: slack_message
   )
 end
 
@@ -33,9 +33,9 @@ lane :external do
   version_code  = Milkrun::VersionCode.new(audience: audience).bump
   version_name  = Milkrun::VersionName.new(audience: audience).read
   slack_message = ["🚀",audience,build_type,"|",version_name,version_code,"successfully delivered to Firebase!"].join(' ')
-  release_notes = changelog_from_git_commits(pretty: "- %an | %s %h | %as")
+  release_notes = "Release " + version_name
 
-  build_android_app(task: "assembleExternalRelease")
+  build_android_app(task: "assembleExternalRelease -Dorg.gradle.java.home=/usr/lib/jvm/java-17-openjdk-amd64")
 
   firebase_app_distribution(
     app: Milkrun::FirebaseCredentialsExtractor.new.external_release,
@@ -43,9 +43,16 @@ lane :external do
     release_notes: release_notes
   )
 
+  upload_to_play_store(
+    json_key_data: ENV["GOOGLE_PLAY_SERVICE_ACCOUNT_KEY"],
+    track: "production",
+    release_status: "draft",
+    version_name: version_name
+  )
+
   slack(
     slack_url: Milkrun::SlackWebhookExtractor.new.webhook,
-    message: slack_message
+    pretext: slack_message
   )
 end
 
@@ -56,12 +63,13 @@ lane :internal do
   version_name  = Milkrun::VersionName.new(audience: audience).read
   slack_message = ["🚀",audience,build_type,"|",version_name,version_code,"successfully delivered to S3 and Firebase!"].join(' ')
 
-  build_android_app(task: "assembleInternalRelease")
+  build_android_app(task: "assembleInternalRelease -Dorg.gradle.java.home=/usr/lib/jvm/java-17-openjdk-amd64")
 
   path_to_apk = lane_context[SharedValues::GRADLE_APK_OUTPUT_PATH]
   Milkrun::S3Package.new(version_code: version_code, file_path: path_to_apk).upload
 
   changelog = Milkrun::Changelog.new(audience: audience, build_type: build_type, version_code: version_code)
+  branch_name = git_branch
   commit_message = last_git_commit[:message]
   changelog.instance_variable_set(:@changelog, commit_message)
   changelog.publish
@@ -69,7 +77,7 @@ lane :internal do
   firebase_app_distribution(
     app: Milkrun::FirebaseCredentialsExtractor.new.internal_release,
     groups: "android-testers, dev",
-    release_notes: commit_message
+    release_notes: "BRANCH:" + branch_name + "\n COMMIT:" + commit_message
   )
 
   slack(

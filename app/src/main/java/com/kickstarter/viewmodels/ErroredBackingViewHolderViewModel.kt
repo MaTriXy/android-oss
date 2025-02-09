@@ -1,15 +1,14 @@
 package com.kickstarter.viewmodels
 
-import androidx.annotation.NonNull
-import com.kickstarter.libs.ActivityViewModel
-import com.kickstarter.libs.Environment
-import com.kickstarter.libs.rx.transformers.Transformers.takeWhen
+import com.kickstarter.libs.rx.transformers.Transformers.takeWhenV2
+import com.kickstarter.libs.utils.extensions.addToDisposable
 import com.kickstarter.models.ErroredBacking
 import com.kickstarter.ui.viewholders.ErroredBackingViewHolder
+import io.reactivex.Observable
+import io.reactivex.disposables.CompositeDisposable
+import io.reactivex.subjects.BehaviorSubject
+import io.reactivex.subjects.PublishSubject
 import org.joda.time.DateTime
-import rx.Observable
-import rx.subjects.BehaviorSubject
-import rx.subjects.PublishSubject
 
 interface ErroredBackingViewHolderViewModel {
     interface Inputs {
@@ -31,10 +30,10 @@ interface ErroredBackingViewHolderViewModel {
         fun notifyDelegateToStartFixPaymentMethod(): Observable<String>
     }
 
-    class ViewModel(@NonNull environment: Environment) : ActivityViewModel<ErroredBackingViewHolder>(environment), Inputs, Outputs {
+    class ViewModel : Inputs, Outputs {
 
         private val erroredBacking = PublishSubject.create<ErroredBacking>()
-        private val manageButtonClicked = PublishSubject.create<Void>()
+        private val manageButtonClicked = PublishSubject.create<Unit>()
 
         private val notifyDelegateToStartFixPaymentMethod = PublishSubject.create<String>()
         private val projectFinalCollectionDate = BehaviorSubject.create<DateTime>()
@@ -43,26 +42,28 @@ interface ErroredBackingViewHolderViewModel {
         val inputs: Inputs = this
         val outputs: Outputs = this
 
+        private val disposables = CompositeDisposable()
+
         init {
 
             val project = this.erroredBacking
-                    .map { it.project() }
+                .map { it.project() }
 
             project
-                    .map { it.name() }
-                    .compose(bindToLifecycle())
-                    .subscribe { this.projectName.onNext(it) }
+                .map { it.name() }
+                .subscribe { this.projectName.onNext(it) }
+                .addToDisposable(disposables)
 
             project
-                    .map { it.finalCollectionDate() }
-                    .compose(bindToLifecycle())
-                    .subscribe { this.projectFinalCollectionDate.onNext(it) }
+                .map { it.finalCollectionDate() }
+                .subscribe { this.projectFinalCollectionDate.onNext(it) }
+                .addToDisposable(disposables)
 
             project
-                    .map { it.slug() }
-                    .compose<String>(takeWhen(this.manageButtonClicked))
-                    .compose(bindToLifecycle())
-                    .subscribe { this.notifyDelegateToStartFixPaymentMethod.onNext(it) }
+                .map { it.slug() }
+                .compose<String>(takeWhenV2(this.manageButtonClicked))
+                .subscribe { this.notifyDelegateToStartFixPaymentMethod.onNext(it) }
+                .addToDisposable(disposables)
         }
 
         override fun configureWith(erroredBacking: ErroredBacking) {
@@ -70,7 +71,7 @@ interface ErroredBackingViewHolderViewModel {
         }
 
         override fun manageButtonClicked() {
-            this.manageButtonClicked.onNext(null)
+            this.manageButtonClicked.onNext(Unit)
         }
 
         override fun notifyDelegateToStartFixPaymentMethod(): Observable<String> = this.notifyDelegateToStartFixPaymentMethod
@@ -79,5 +80,8 @@ interface ErroredBackingViewHolderViewModel {
 
         override fun projectName(): Observable<String> = this.projectName
 
+        fun clear() {
+            disposables.clear()
+        }
     }
 }

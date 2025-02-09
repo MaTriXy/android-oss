@@ -26,10 +26,11 @@ public final class KSRequestInterceptor implements Interceptor {
   }
 
   private Request request(final @NonNull Request initialRequest) {
-    return initialRequest.newBuilder()
-      .header("Kickstarter-Android-App", this.build.versionCode().toString())
-      .header("Kickstarter-App-Id", this.build.applicationId())
-      .header("Accept-Language", I18nUtils.language())
-      .build();
+    final Request.Builder builder = initialRequest.newBuilder()
+            .header("Kickstarter-Android-App", this.build.versionCode().toString())
+            .header("Kickstarter-App-Id", this.build.applicationId())
+            .header("Accept-Language", I18nUtils.language());
+
+    return builder.build();
   }
 }

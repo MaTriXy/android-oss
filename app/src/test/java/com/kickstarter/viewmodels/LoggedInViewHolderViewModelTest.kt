@@ -3,10 +3,19 @@ package com.kickstarter.viewmodels
 import com.kickstarter.KSRobolectricTestCase
 import com.kickstarter.R
 import com.kickstarter.libs.Environment
+import com.kickstarter.libs.featureflag.FlagKey
+import com.kickstarter.libs.featureflag.FlipperFlagKey
+import com.kickstarter.libs.utils.extensions.addToDisposable
+import com.kickstarter.mock.MockFeatureFlagClient
 import com.kickstarter.mock.factories.UserFactory
+import com.kickstarter.mock.services.MockApolloClientV2
 import com.kickstarter.models.User
+import com.kickstarter.models.UserPrivacy
+import io.reactivex.Observable
+import io.reactivex.disposables.CompositeDisposable
+import io.reactivex.subscribers.TestSubscriber
+import org.junit.After
 import org.junit.Test
-import rx.observers.TestSubscriber
 
 class LoggedInViewHolderViewModelTest : KSRobolectricTestCase() {
     private lateinit var vm: LoggedInViewHolderViewModel.ViewModel
@@ -17,16 +26,21 @@ class LoggedInViewHolderViewModelTest : KSRobolectricTestCase() {
     private val name = TestSubscriber<String>()
     private val unreadMessagesCount = TestSubscriber<Int>()
     private val user = TestSubscriber<User>()
+    private val pledgedProjectsIsVisible = TestSubscriber<Boolean>()
+    private val pledgedProjectsIndicatorIsVisible = TestSubscriber<Boolean>()
+    private val disposables = CompositeDisposable()
 
     fun setUpEnvironment(environment: Environment) {
         this.vm = LoggedInViewHolderViewModel.ViewModel(environment)
-        this.vm.outputs.activityCount().subscribe(this.activityCount)
-        this.vm.outputs.activityCountTextColor().subscribe(this.activityCountTextColor)
-        this.vm.outputs.avatarUrl().subscribe(this.avatarUrl)
-        this.vm.outputs.dashboardRowIsGone().subscribe(this.dashboardRowIsGone)
-        this.vm.outputs.name().subscribe(this.name)
-        this.vm.outputs.unreadMessagesCount().subscribe(this.unreadMessagesCount)
-        this.vm.outputs.user().subscribe(this.user)
+        this.vm.outputs.activityCount().subscribe { this.activityCount.onNext(it) }.addToDisposable(disposables)
+        this.vm.outputs.activityCountTextColor().subscribe { this.activityCountTextColor.onNext(it) }.addToDisposable(disposables)
+        this.vm.outputs.avatarUrl().subscribe { this.avatarUrl.onNext(it) }.addToDisposable(disposables)
+        this.vm.outputs.dashboardRowIsGone().subscribe { this.dashboardRowIsGone.onNext(it) }.addToDisposable(disposables)
+        this.vm.outputs.name().subscribe { this.name.onNext(it) }.addToDisposable(disposables)
+        this.vm.outputs.unreadMessagesCount().subscribe { this.unreadMessagesCount.onNext(it) }.addToDisposable(disposables)
+        this.vm.outputs.user().subscribe { this.user.onNext(it) }.addToDisposable(disposables)
+        this.vm.outputs.pledgedProjectsIsVisible().subscribe { this.pledgedProjectsIsVisible.onNext(it) }.addToDisposable(disposables)
+        this.vm.outputs.pledgedProjectsIndicatorIsVisible().subscribe { this.pledgedProjectsIndicatorIsVisible.onNext(it) }.addToDisposable(disposables)
     }
 
     @Test
@@ -34,10 +48,10 @@ class LoggedInViewHolderViewModelTest : KSRobolectricTestCase() {
         setUpEnvironment(environment())
 
         val user = UserFactory.user()
-                .toBuilder()
-                .erroredBackingsCount(3)
-                .unseenActivityCount(2)
-                .build()
+            .toBuilder()
+            .erroredBackingsCount(3)
+            .unseenActivityCount(2)
+            .build()
         this.vm.inputs.configureWith(user)
 
         this.activityCount.assertValue(5)
@@ -48,9 +62,9 @@ class LoggedInViewHolderViewModelTest : KSRobolectricTestCase() {
         setUpEnvironment(environment())
 
         val user = UserFactory.user()
-                .toBuilder()
-                .unseenActivityCount(2)
-                .build()
+            .toBuilder()
+            .unseenActivityCount(2)
+            .build()
         this.vm.inputs.configureWith(user)
 
         this.activityCount.assertValue(2)
@@ -61,9 +75,9 @@ class LoggedInViewHolderViewModelTest : KSRobolectricTestCase() {
         setUpEnvironment(environment())
 
         val user = UserFactory.user()
-                .toBuilder()
-                .erroredBackingsCount(3)
-                .build()
+            .toBuilder()
+            .erroredBackingsCount(3)
+            .build()
         this.vm.inputs.configureWith(user)
 
         this.activityCount.assertValue(3)
@@ -83,12 +97,12 @@ class LoggedInViewHolderViewModelTest : KSRobolectricTestCase() {
         setUpEnvironment(environment())
 
         val user = UserFactory.user()
-                .toBuilder()
-                .erroredBackingsCount(3)
-                .build()
+            .toBuilder()
+            .erroredBackingsCount(3)
+            .build()
         this.vm.inputs.configureWith(user)
 
-        this.activityCountTextColor.assertValue(R.color.ksr_red_400)
+        this.activityCountTextColor.assertValue(R.color.kds_alert)
     }
 
     @Test
@@ -148,5 +162,137 @@ class LoggedInViewHolderViewModelTest : KSRobolectricTestCase() {
         this.vm.inputs.configureWith(user)
 
         this.user.assertValue(user)
+    }
+
+    @Test
+    fun `when user has project alerts, should emit true`() {
+        setUpEnvironment(environment())
+        val user = UserFactory.user().toBuilder().ppoHasAction(true).build()
+        this.vm.inputs.configureWith(user)
+
+        this.pledgedProjectsIndicatorIsVisible.assertValue(true)
+    }
+
+    @Test
+    fun `when user doesnt have project alerts, should emit false`() {
+        setUpEnvironment(environment())
+        val user = UserFactory.user().toBuilder().ppoHasAction(false).build()
+        this.vm.inputs.configureWith(user)
+
+        this.pledgedProjectsIndicatorIsVisible.assertValue(false)
+    }
+
+    @Test
+    fun `test feature flag enabled in backed and mobile shows PPO`() {
+        val privacy = UserPrivacy(
+            "Some Name",
+            "some@email.com",
+            true,
+            true,
+            true,
+            true,
+            "USD",
+            enabledFeatures = listOf("some_key_here", FlipperFlagKey.FLIPPER_PLEDGED_PROJECTS_OVERVIEW.key)
+        )
+
+        val apolloClient = object : MockApolloClientV2() {
+            override fun userPrivacy(): Observable<UserPrivacy> {
+                return Observable.just(
+                    privacy
+                )
+            }
+        }
+        val ffClient = object : MockFeatureFlagClient() {
+            override fun getBoolean(FlagKey: FlagKey): Boolean {
+                return true
+            }
+        }
+
+        val environment = environment().toBuilder()
+            .apolloClientV2(apolloClient)
+            .featureFlagClient(ffClient)
+            .build()
+
+        setUpEnvironment(environment)
+
+        this.pledgedProjectsIsVisible.assertValue(true)
+    }
+
+    @Test
+    fun `test feature flag disabled in backed and enabled in mobile not show PPO`() {
+        val privacy = UserPrivacy(
+            "Some Name",
+            "some@email.com",
+            true,
+            true,
+            true,
+            true,
+            "USD",
+            enabledFeatures = listOf("some_key_here")
+        )
+
+        val apolloClient = object : MockApolloClientV2() {
+            override fun userPrivacy(): Observable<UserPrivacy> {
+                return Observable.just(
+                    privacy
+                )
+            }
+        }
+        val ffClient = object : MockFeatureFlagClient() {
+            override fun getBoolean(FlagKey: FlagKey): Boolean {
+                return true
+            }
+        }
+
+        val environment = environment().toBuilder()
+            .apolloClientV2(apolloClient)
+            .featureFlagClient(ffClient)
+            .build()
+
+        setUpEnvironment(environment)
+
+        this.pledgedProjectsIsVisible.assertValue(false)
+    }
+
+    @Test
+    fun `test feature flag disabled in backed and disabled in mobile not show PPO`() {
+        val privacy = UserPrivacy(
+            "Some Name",
+            "some@email.com",
+            true,
+            true,
+            true,
+            true,
+            "USD",
+            enabledFeatures = listOf("some_key_here")
+        )
+
+        val apolloClient = object : MockApolloClientV2() {
+            override fun userPrivacy(): Observable<UserPrivacy> {
+                return Observable.just(
+                    privacy
+                )
+            }
+        }
+
+        val ffClient = object : MockFeatureFlagClient() {
+            override fun getBoolean(FlagKey: FlagKey): Boolean {
+                return false
+            }
+        }
+
+        val environment = environment().toBuilder()
+            .apolloClientV2(apolloClient)
+            .featureFlagClient(ffClient)
+            .build()
+
+        setUpEnvironment(environment)
+
+        this.pledgedProjectsIsVisible.assertValue(false)
+    }
+
+    @After
+    fun clear() {
+        disposables.clear()
     }
 }

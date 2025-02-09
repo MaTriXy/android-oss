@@ -1,19 +1,57 @@
 package com.kickstarter.ui.viewholders
 
-import android.view.View
-import kotlinx.android.synthetic.main.item_add_card.view.*
+import androidx.core.view.isGone
+import com.kickstarter.databinding.ItemAddCardBinding
+import com.kickstarter.libs.utils.extensions.addToDisposable
+import io.reactivex.android.schedulers.AndroidSchedulers
+import io.reactivex.disposables.CompositeDisposable
 
-class RewardAddCardViewHolder (val view : View, val delegate : Delegate) : KSViewHolder(view) {
+enum class State {
+    DEFAULT, LOADING
+}
+
+class RewardAddCardViewHolder(val binding: ItemAddCardBinding, val delegate: Delegate) : KSViewHolder(binding.root) {
+
+    private val viewModel: AddCardViewHolderViewModel.ViewModel = AddCardViewHolderViewModel.ViewModel()
+    private val disposables = CompositeDisposable()
 
     init {
-        this.view.add_card_button.setOnClickListener {
+        this.binding.addCardButton.setOnClickListener {
             this.delegate.addNewCardButtonClicked()
+        }
+
+        this.viewModel.outputs
+            .setDefaultState()
+            .observeOn(AndroidSchedulers.mainThread())
+            .subscribe {
+                this.binding.newPaymentPlusIcon.isGone = false
+                this.binding.newPaymentProgress.isGone = true
+            }
+            .addToDisposable(disposables)
+
+        this.viewModel.outputs
+            .setLoadingState()
+            .observeOn(AndroidSchedulers.mainThread())
+            .subscribe {
+                this.binding.newPaymentProgress.isGone = false
+                this.binding.newPaymentPlusIcon.isGone = true
+            }
+            .addToDisposable(disposables)
+    }
+
+    override fun bindData(data: Any?) {
+        if (data is State) {
+            this.viewModel.inputs.configureWith(data)
         }
     }
 
-    override fun bindData(data: Any?) {}
-
     interface Delegate {
         fun addNewCardButtonClicked()
+    }
+
+    override fun destroy() {
+        disposables.clear()
+        viewModel.clear()
+        super.destroy()
     }
 }

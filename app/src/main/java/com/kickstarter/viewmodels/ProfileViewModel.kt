@@ -1,24 +1,27 @@
 package com.kickstarter.viewmodels
 
 import android.util.Pair
-import com.kickstarter.libs.ActivityViewModel
-import com.kickstarter.libs.ApiPaginator
-import com.kickstarter.libs.CurrentUserType
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+import com.kickstarter.libs.ApiPaginatorV2
 import com.kickstarter.libs.Environment
-import com.kickstarter.libs.rx.transformers.Transformers.neverError
-import com.kickstarter.libs.utils.IntegerUtils
+import com.kickstarter.libs.rx.transformers.Transformers.neverErrorV2
+import com.kickstarter.libs.utils.EventContextValues
 import com.kickstarter.libs.utils.NumberUtils
+import com.kickstarter.libs.utils.extensions.addToDisposable
+import com.kickstarter.libs.utils.extensions.isNonZero
+import com.kickstarter.libs.utils.extensions.isNotNull
+import com.kickstarter.libs.utils.extensions.isZero
 import com.kickstarter.models.Project
-import com.kickstarter.services.ApiClientType
 import com.kickstarter.services.DiscoveryParams
 import com.kickstarter.services.apiresponses.DiscoverEnvelope
-import com.kickstarter.ui.activities.ProfileActivity
 import com.kickstarter.ui.adapters.ProfileAdapter
 import com.kickstarter.ui.viewholders.EmptyProfileViewHolder
 import com.kickstarter.ui.viewholders.ProfileCardViewHolder
-import rx.Observable
-import rx.subjects.BehaviorSubject
-import rx.subjects.PublishSubject
+import io.reactivex.Observable
+import io.reactivex.disposables.CompositeDisposable
+import io.reactivex.subjects.BehaviorSubject
+import io.reactivex.subjects.PublishSubject
 
 interface ProfileViewModel {
 
@@ -68,10 +71,10 @@ interface ProfileViewModel {
         fun projectList(): Observable<List<Project>>
 
         /** Emits when we should resume the [com.kickstarter.ui.activities.DiscoveryActivity].  */
-        fun resumeDiscoveryActivity(): Observable<Void>
+        fun resumeDiscoveryActivity(): Observable<Unit>
 
         /** Emits when we should start the [com.kickstarter.ui.activities.MessageThreadsActivity].  */
-        fun startMessageThreadsActivity(): Observable<Void>
+        fun startMessageThreadsActivity(): Observable<Unit>
 
         /** Emits when we should start the [com.kickstarter.ui.activities.ProjectActivity].  */
         fun startProjectActivity(): Observable<Project>
@@ -80,13 +83,15 @@ interface ProfileViewModel {
         fun userNameTextViewText(): Observable<String>
     }
 
-    class ViewModel(environment: Environment) : ActivityViewModel<ProfileActivity>(environment), ProfileAdapter.Delegate, Inputs, Outputs {
-        private val client: ApiClientType = environment.apiClient()
-        private val currentUser: CurrentUserType = environment.currentUser()
+    class ProfileViewModel(environment: Environment) : ViewModel(), ProfileAdapter.Delegate, Inputs, Outputs {
+        private val client = requireNotNull(environment.apiClientV2())
+        private val currentUser = requireNotNull(environment.currentUserV2())
+        private val analytics = requireNotNull(environment.analytics())
 
-        private val exploreProjectsButtonClicked = PublishSubject.create<Void>()
-        private val messagesButtonClicked = PublishSubject.create<Void>()
-        private val nextPage = PublishSubject.create<Void>()
+        private val exploreProjectsButtonClicked = PublishSubject.create<Unit>()
+        private val messagesButtonClicked = PublishSubject.create<Unit>()
+        private val nextPage = PublishSubject.create<Unit>()
+        private val refresh = PublishSubject.create<DiscoveryParams>()
         private val projectCardClicked = PublishSubject.create<Project>()
 
         private val avatarImageViewUrl: Observable<String>
@@ -99,82 +104,88 @@ interface ProfileViewModel {
         private val dividerViewHidden: Observable<Boolean>
         private val isFetchingProjects = BehaviorSubject.create<Boolean>()
         private val projectList: Observable<List<Project>>
-        private val resumeDiscoveryActivity: Observable<Void>
-        private val startProjectActivity: Observable<Project>
-        private val startMessageThreadsActivity: Observable<Void>
+        private val resumeDiscoveryActivity: Observable<Unit>
+        private val startMessageThreadsActivity: Observable<Unit>
         private val userNameTextViewText: Observable<String>
 
-        val inputs: ProfileViewModel.Inputs = this
-        val outputs: ProfileViewModel.Outputs = this
+        val inputs: Inputs = this
+        val outputs: Outputs = this
+
+        val disposables = CompositeDisposable()
 
         init {
-
             val freshUser = this.client.fetchCurrentUser()
-                    .retry(2)
-                    .compose(neverError())
+                .retry(2)
+                .compose(neverErrorV2())
+
             freshUser.subscribe { this.currentUser.refresh(it) }
+                .addToDisposable(disposables)
 
             val params = DiscoveryParams.builder()
-                    .backed(1)
-                    .perPage(18)
-                    .sort(DiscoveryParams.Sort.ENDING_SOON)
-                    .build()
+                .backed(1)
+                .perPage(18)
+                .sort(DiscoveryParams.Sort.ENDING_SOON)
+                .build()
 
-            val paginator = ApiPaginator.builder<Project, DiscoverEnvelope, DiscoveryParams>()
-                    .nextPage(this.nextPage)
-                    .envelopeToListOfData { it.projects() }
-                    .envelopeToMoreUrl { env -> env.urls().api().moreProjects() }
-                    .loadWithParams { this.client.fetchProjects(params) }
-                    .loadWithPaginationPath { this.client.fetchProjects(it) }
-                    .build()
-            
+            val paginator = ApiPaginatorV2.builder<Project, DiscoverEnvelope, DiscoveryParams>()
+                .nextPage(nextPage)
+                .startOverWith(Observable.just(params))
+                .envelopeToListOfData { it.projects() }
+                .envelopeToMoreUrl { env -> env.urls()?.api()?.moreProjects() }
+                .loadWithParams { this.client.fetchProjects(params).compose(neverErrorV2()) }
+                .loadWithPaginationPath { this.client.fetchProjects(it).compose(neverErrorV2()) }
+                .build()
+
             paginator.isFetching
-                    .compose(bindToLifecycle())
-                    .subscribe(this.isFetchingProjects)
-            
+                .subscribe { this.isFetchingProjects.onNext(it) }
+                .addToDisposable(disposables)
+
             val loggedInUser = this.currentUser.loggedInUser()
 
             this.avatarImageViewUrl = loggedInUser.map { u -> u.avatar().medium() }
 
             this.backedCountTextViewHidden = loggedInUser
-                    .map { u -> IntegerUtils.isZero(u.backedProjectsCount()) }
+                .map { u -> u.backedProjectsCount().isZero() }
             this.backedTextViewHidden = this.backedCountTextViewHidden
 
             this.backedCountTextViewText = loggedInUser
-                    .map<Int> { it.backedProjectsCount() }
-                    .filter { IntegerUtils.isNonZero(it) }
-                    .map { NumberUtils.format(it) }
+                .map<Int> { it.backedProjectsCount() }
+                .filter { it.isNonZero() }
+                .map { NumberUtils.format(it) }
 
             this.createdCountTextViewHidden = loggedInUser
-                    .map { u -> IntegerUtils.isZero(u.createdProjectsCount()) }
+                .map { u -> u.createdProjectsCount().isZero() }
             this.createdTextViewHidden = this.createdCountTextViewHidden
 
             this.createdCountTextViewText = loggedInUser
-                    .map<Int> { it.createdProjectsCount() }
-                    .filter { IntegerUtils.isNonZero(it) }
-                    .map { NumberUtils.format(it) }
+                .map<Int> { it.createdProjectsCount() }
+                .filter { it.isNonZero() }
+                .map { NumberUtils.format(it) }
 
             this.dividerViewHidden = Observable.combineLatest<Boolean, Boolean, Pair<Boolean, Boolean>>(
-                    this.backedTextViewHidden,
-                    this.createdTextViewHidden) { a, b -> Pair.create(a, b) }
-                    .map { p -> p.first || p.second }
+                this.backedTextViewHidden,
+                this.createdTextViewHidden
+            ) { a, b -> Pair.create(a, b) }
+                .map { p -> p.first || p.second }
 
-            this.projectList = paginator.paginatedData()
+            this.projectList = paginator.paginatedData().filter { it.isNotNull() }
             this.resumeDiscoveryActivity = this.exploreProjectsButtonClicked
-            this.startProjectActivity = this.projectCardClicked
+
             this.startMessageThreadsActivity = this.messagesButtonClicked
             this.userNameTextViewText = loggedInUser.map { it.name() }
 
-            this.koala.trackProfileView()
+            projectCardClicked
+                .subscribe { analytics.trackProjectCardClicked(it, EventContextValues.ContextPageName.PROFILE.contextName) }
+                .addToDisposable(disposables)
         }
 
         override fun emptyProfileViewHolderExploreProjectsClicked(viewHolder: EmptyProfileViewHolder) = this.exploreProjectsButtonClicked()
 
-        override fun exploreProjectsButtonClicked() = this.exploreProjectsButtonClicked.onNext(null)
+        override fun exploreProjectsButtonClicked() = this.exploreProjectsButtonClicked.onNext(Unit)
 
-        override fun messagesButtonClicked() = this.messagesButtonClicked.onNext(null)
+        override fun messagesButtonClicked() = this.messagesButtonClicked.onNext(Unit)
 
-        override fun nextPage() = this.nextPage.onNext(null)
+        override fun nextPage() = this.nextPage.onNext(Unit)
 
         override fun profileCardViewHolderClicked(viewHolder: ProfileCardViewHolder, project: Project) = this.projectCardClicked(project)
 
@@ -202,10 +213,22 @@ interface ProfileViewModel {
 
         override fun resumeDiscoveryActivity() = this.resumeDiscoveryActivity
 
-        override fun startProjectActivity() = this.startProjectActivity
+        override fun startProjectActivity() = this.projectCardClicked
 
         override fun startMessageThreadsActivity() = this.startMessageThreadsActivity
 
         override fun userNameTextViewText() = this.userNameTextViewText
+
+        override fun onCleared() {
+            disposables.clear()
+            super.onCleared()
+        }
+    }
+
+    class Factory(private val environment: Environment) :
+        ViewModelProvider.Factory {
+        override fun <T : ViewModel> create(modelClass: Class<T>): T {
+            return ProfileViewModel(environment) as T
+        }
     }
 }

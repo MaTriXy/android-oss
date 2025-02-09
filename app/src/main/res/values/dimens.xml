@@ -1,5 +1,7 @@
 <resources>
   <!-- Kickstarter six-point grid keylines-->
+  <dimen name="grid_none">0dp</dimen>
+  <dimen name="grid_0">2dp</dimen>
   <dimen name="grid_1_half">3dp</dimen>
   <dimen name="grid_1">6dp</dimen>
   <dimen name="grid_3_half">9dp</dimen>
@@ -37,6 +39,7 @@
   <dimen name="grid_57">342dp</dimen>
 
   <!-- Typography-->
+  <dimen name="badge_superbacker">10sp</dimen>
   <dimen name="caption_2">11sp</dimen>
   <dimen name="caption_1">12sp</dimen>
   <dimen name="footnote">13sp</dimen>
@@ -49,9 +52,16 @@
   <dimen name="title_reward">24sp</dimen>
   <dimen name="title_1">28sp</dimen>
   <dimen name="title_thank_you">36sp</dimen>
+  <dimen name="parser_h1">28sp</dimen>
+  <dimen name="parser_h2">26sp</dimen>
+  <dimen name="parser_h3">24sp</dimen>
+  <dimen name="parser_h4">22sp</dimen>
+  <dimen name="parser_h5">20sp</dimen>
+  <dimen name="parser_h6">18sp</dimen>
 
   <dimen name="caption_line_spacing_extra">2dp</dimen>
   <dimen name="body_line_spacing_extra">2dp</dimen>
+  <dimen name="callout_line_spacing_extra_story">3dp</dimen>
   <dimen name="callout_line_spacing_extra">4dp</dimen>
 
   <!-- Icon sizes -->
@@ -131,7 +141,9 @@
   <dimen name="thanks_project_photo_height">117dp</dimen>
 
   <!-- TextViews -->
-  <dimen name="text_view_corner_radius">@dimen/grid_1_half</dimen>
+  <dimen name="text_view_corner_radius">@dimen/grid_1</dimen>
+
+  <dimen name="text_pill_corner_radius">@dimen/grid_1</dimen>
 
   <!-- Toolbars -->
   <dimen name="ks_toolbar_height">56dp</dimen>
@@ -194,5 +206,8 @@
   <dimen name="indeterminate_horizontal_progress_bar_margin_top">-6dp</dimen>
   <dimen name="progress_bar_min_height">@dimen/grid_1_half</dimen>
   <dimen name="progress_bar_height">@dimen/grid_1_half</dimen>
+
+  <!-- max height-->
+  <dimen name="comments_edit_view_max_height">200dp</dimen>
 
 </resources>

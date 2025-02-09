@@ -1,39 +1,45 @@
 package com.kickstarter.ui.viewholders
 
 import android.util.Pair
-import android.view.View
-import com.kickstarter.libs.utils.ObjectUtils
+import com.kickstarter.databinding.ItemShippingRuleBinding
+import com.kickstarter.libs.utils.extensions.addToDisposable
 import com.kickstarter.models.Project
 import com.kickstarter.models.ShippingRule
 import com.kickstarter.viewmodels.ShippingRuleViewHolderViewModel
-import kotlinx.android.synthetic.main.item_shipping_rule.view.*
-import rx.android.schedulers.AndroidSchedulers
+import io.reactivex.android.schedulers.AndroidSchedulers
+import io.reactivex.disposables.CompositeDisposable
 
-class ShippingRuleViewHolder(private val view: View, val delegate: Delegate) : KSArrayViewHolder(view) {
+class ShippingRuleViewHolder(private val binding: ItemShippingRuleBinding, val delegate: Delegate) : KSArrayViewHolder(binding.root) {
 
     interface Delegate {
         fun ruleSelected(rule: ShippingRule)
     }
     private lateinit var shippingRule: ShippingRule
     private val viewModel = ShippingRuleViewHolderViewModel.ViewModel(environment())
+    private val disposables = CompositeDisposable()
 
     init {
 
         this.viewModel.outputs.shippingRuleText()
-                .compose(bindToLifecycle())
-                .observeOn(AndroidSchedulers.mainThread())
-                .subscribe { this.view.shipping_rules_item_text_view.text = it }
+            .observeOn(AndroidSchedulers.mainThread())
+            .subscribe { this.binding.shippingRulesItemTextView.text = it }
+            .addToDisposable(disposables)
 
-        this.view.shipping_rule_root.setOnClickListener {
+        this.binding.shippingRuleRoot.setOnClickListener {
             this.delegate.ruleSelected(this.shippingRule)
         }
     }
 
     override fun bindData(any: Any?) {
-        val shippingRuleAndProject = ObjectUtils.requireNonNull(any as Pair<ShippingRule, Project>)
-        this.shippingRule = ObjectUtils.requireNonNull(shippingRuleAndProject.first, ShippingRule::class.java)
-        val project = ObjectUtils.requireNonNull(shippingRuleAndProject.second, Project::class.java)
+        val shippingRuleAndProject = requireNotNull(any as Pair<ShippingRule, Project>)
+        this.shippingRule = requireNotNull(shippingRuleAndProject.first) { ShippingRule::class.java.toString() + " required to be non-null." }
+        val project = requireNotNull(shippingRuleAndProject.second) { Project::class.java.toString() + " required to be non-null." }
 
         this.viewModel.inputs.configureWith(this.shippingRule, project)
+    }
+
+    override fun destroy() {
+        this.viewModel.onCleared()
+        disposables.clear()
     }
 }

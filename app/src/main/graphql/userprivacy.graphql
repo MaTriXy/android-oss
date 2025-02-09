@@ -16,6 +16,7 @@ query UserPrivacy {
     isDeliverable
     isEmailVerified
     chosenCurrency
+    enabledFeatures
   }
 }
 
@@ -41,6 +42,7 @@ mutation UpdateUserPassword($currentPassword: String!, $password: String!, $pass
     user {
       email
       isEmailVerified
+      hasPassword
     }
   }
 }

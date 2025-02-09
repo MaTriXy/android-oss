@@ -2,14 +2,15 @@ package com.kickstarter.viewmodels
 
 import android.util.Pair
 import com.kickstarter.R
-import com.kickstarter.libs.Environment
-import com.kickstarter.libs.rx.transformers.Transformers.takePairWhen
-import com.kickstarter.libs.utils.BooleanUtils
-import com.kickstarter.libs.utils.ProjectUtils
+import com.kickstarter.libs.rx.transformers.Transformers.takePairWhenV2
+import com.kickstarter.libs.utils.extensions.acceptedCardType
+import com.kickstarter.libs.utils.extensions.addToDisposable
+import com.kickstarter.libs.utils.extensions.negate
 import com.kickstarter.models.StoredCard
-import rx.Observable
-import rx.subjects.BehaviorSubject
-import rx.subjects.PublishSubject
+import com.kickstarter.models.extensions.isFromPaymentSheet
+import io.reactivex.Observable
+import io.reactivex.subjects.BehaviorSubject
+import io.reactivex.subjects.PublishSubject
 
 interface RewardCardUnselectedViewHolderViewModel : BaseRewardCardViewHolderViewModel {
     interface Inputs : BaseRewardCardViewHolderViewModel.Inputs {
@@ -37,7 +38,7 @@ interface RewardCardUnselectedViewHolderViewModel : BaseRewardCardViewHolderView
         fun selectImageIsVisible(): Observable<Boolean>
     }
 
-    class ViewModel(environment: Environment) : BaseRewardCardViewHolderViewModel.ViewModel(environment), Inputs, Outputs  {
+    class ViewModel : BaseRewardCardViewHolderViewModel.ViewModel(), Inputs, Outputs {
         val inputs: Inputs = this
         val outputs: Outputs = this
 
@@ -52,46 +53,41 @@ interface RewardCardUnselectedViewHolderViewModel : BaseRewardCardViewHolderView
 
         init {
 
-            val allowedCardType = this.cardAndProject
-                    .map { ProjectUtils.acceptedCardType(it.first.type(), it.second) }
+            val card = this.cardAndProject
+                .map { it.second.acceptedCardType(it.first.type()) || it.first.isFromPaymentSheet() }
 
-            allowedCardType
-                    .compose(bindToLifecycle())
-                    .subscribe(this.isClickable)
+            card
+                .subscribe(this.isClickable)
 
-            allowedCardType
-                    .map { if (it) 1.0f else .5f }
-                    .compose(bindToLifecycle())
-                    .subscribe(this.issuerImageAlpha)
+            card
+                .map { if (it) 1.0f else .5f }
+                .subscribe(this.issuerImageAlpha)
 
-            allowedCardType
-                    .map { if (it) R.color.text_primary else R.color.text_secondary }
-                    .compose(bindToLifecycle())
-                    .subscribe(this.lastFourTextColor)
+            card
+                .map { if (it) R.color.text_primary else R.color.text_secondary }
+                .subscribe(this.lastFourTextColor)
 
-            allowedCardType
-                    .map { BooleanUtils.negate(it) }
-                    .compose(bindToLifecycle())
-                    .subscribe(this.notAvailableCopyIsVisible)
+            card
+                .map { it.negate() }
+                .subscribe(this.notAvailableCopyIsVisible)
 
-            allowedCardType
-                    .compose(bindToLifecycle())
-                    .subscribe(this.selectImageIsVisible)
+            card
+                .subscribe(this.selectImageIsVisible)
 
             this.cardAndProject
-                    .map { it.first }
-                    .compose<Pair<StoredCard, Int>>(takePairWhen(this.cardSelected))
-                    .compose(bindToLifecycle())
-                    .subscribe { this.notifyDelegateCardSelected.onNext(it) }
+                .map { it.first }
+                .compose<Pair<StoredCard, Int>>(takePairWhenV2(this.cardSelected))
+                .subscribe { this.notifyDelegateCardSelected.onNext(it) }
+                .addToDisposable(disposables)
         }
 
         override fun cardSelected(position: Int) = this.cardSelected.onNext(position)
 
-        override fun isClickable() : Observable<Boolean> = this.isClickable
+        override fun isClickable(): Observable<Boolean> = this.isClickable
 
-        override fun issuerImageAlpha() : Observable<Float> = this.issuerImageAlpha
+        override fun issuerImageAlpha(): Observable<Float> = this.issuerImageAlpha
 
-        override fun lastFourTextColor() : Observable<Int> = this.lastFourTextColor
+        override fun lastFourTextColor(): Observable<Int> = this.lastFourTextColor
 
         override fun notAvailableCopyIsVisible(): Observable<Boolean> = this.notAvailableCopyIsVisible
 

@@ -1,106 +1,109 @@
 package com.kickstarter.ui.activities
 
 import android.content.Intent
+import android.os.Build
 import android.os.Bundle
-import android.view.Menu
-import android.view.MenuItem
-import com.kickstarter.R
-import com.kickstarter.extensions.onChange
-import com.kickstarter.extensions.showSnackbar
-import com.kickstarter.libs.BaseActivity
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.activity.viewModels
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.material.rememberScaffoldState
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.kickstarter.libs.Logout
-import com.kickstarter.libs.qualifiers.RequiresActivityViewModel
-import com.kickstarter.libs.rx.transformers.Transformers
+import com.kickstarter.libs.featureflag.FlagKey
 import com.kickstarter.libs.utils.ApplicationUtils
-import com.kickstarter.libs.utils.ViewUtils
-import com.kickstarter.ui.IntentKey
-import com.kickstarter.ui.data.LoginReason
+import com.kickstarter.libs.utils.extensions.getEnvironment
+import com.kickstarter.ui.SharedPreferenceKey
+import com.kickstarter.ui.activities.compose.ChangePasswordScreen
+import com.kickstarter.ui.compose.designsystem.KickstarterApp
 import com.kickstarter.viewmodels.ChangePasswordViewModel
-import kotlinx.android.synthetic.main.activity_change_password.*
-import kotlinx.android.synthetic.main.change_password_toolbar.*
+import com.kickstarter.viewmodels.ChangePasswordViewModelFactory
+import io.reactivex.disposables.CompositeDisposable
 
+class ChangePasswordActivity : ComponentActivity() {
 
-@RequiresActivityViewModel(ChangePasswordViewModel.ViewModel::class)
-class ChangePasswordActivity : BaseActivity<ChangePasswordViewModel.ViewModel>() {
-
-    private var saveEnabled = false
-    private lateinit var logout: Logout
+    private var logout: Logout? = null
+    private lateinit var disposables: CompositeDisposable
+    private var theme = AppThemes.MATCH_SYSTEM.ordinal
+    private lateinit var viewModelFactory: ChangePasswordViewModelFactory
+    private val viewModel: ChangePasswordViewModel by viewModels {
+        viewModelFactory
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_change_password)
-        setSupportActionBar(change_password_toolbar)
+        disposables = CompositeDisposable()
+        var darkModeEnabled = false
 
-        this.logout = environment().logout()
+        this.getEnvironment()?.let { env ->
+            viewModelFactory = ChangePasswordViewModelFactory(env)
 
-        this.viewModel.outputs.progressBarIsVisible()
-                .compose(bindToLifecycle())
-                .compose(Transformers.observeForUI())
-                .subscribe { ViewUtils.setGone(progress_bar, !it) }
+            darkModeEnabled = env.featureFlagClient()?.getBoolean(FlagKey.ANDROID_DARK_MODE_ENABLED) ?: false
+            theme = env.sharedPreferences()
+                ?.getInt(SharedPreferenceKey.APP_THEME, AppThemes.MATCH_SYSTEM.ordinal)
+                ?: AppThemes.MATCH_SYSTEM.ordinal
+        }
 
-        this.viewModel.outputs.passwordWarning()
-                .compose(bindToLifecycle())
-                .compose(Transformers.observeForUI())
-                .subscribe {
-                    warning.text = when {
-                        it != null -> getString(it)
-                        else -> null
+        setContent {
+            val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+
+            val showProgressBar = uiState.isLoading
+            val error = uiState.errorMessage
+            val email = uiState.email
+
+            val scaffoldState = rememberScaffoldState()
+
+            KickstarterApp(
+                useDarkTheme =
+                if (darkModeEnabled) {
+                    when (theme) {
+                        AppThemes.MATCH_SYSTEM.ordinal -> isSystemInDarkTheme()
+                        AppThemes.DARK.ordinal -> true
+                        AppThemes.LIGHT.ordinal -> false
+                        else -> false
                     }
-                }
-
-        this.viewModel.outputs.saveButtonIsEnabled()
-                .compose(bindToLifecycle())
-                .compose(Transformers.observeForUI())
-                .subscribe { updateMenu(it) }
-
-        this.viewModel.outputs.success()
-                .compose(bindToLifecycle())
-                .compose(Transformers.observeForUI())
-                .subscribe { logout(it) }
-
-        this.viewModel.outputs.error()
-                .compose(bindToLifecycle())
-                .compose(Transformers.observeForUI())
-                .subscribe { showSnackbar(change_password_toolbar, it) }
-
-        current_password.onChange { this.viewModel.inputs.currentPassword(it) }
-        new_password.onChange { this.viewModel.inputs.newPassword(it) }
-        confirm_password.onChange { this.viewModel.inputs.confirmPassword(it) }
-    }
-
-
-    override fun onOptionsItemSelected(item: MenuItem): Boolean {
-        return when (item.itemId) {
-            R.id.save -> {
-                this.viewModel.inputs.changePasswordClicked()
-                true
+                } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    isSystemInDarkTheme() // Force dark mode uses system theme
+                } else false
+            ) {
+                ChangePasswordScreen(
+                    onBackClicked = { onBackPressedDispatcher.onBackPressed() },
+                    onAcceptButtonClicked = { current, new ->
+                        viewModel.updatePassword(current, new)
+                    },
+                    showProgressBar = showProgressBar,
+                    scaffoldState = scaffoldState
+                )
             }
-            else -> super.onOptionsItemSelected(item)
+
+            error?.let {
+                LaunchedEffect(scaffoldState) {
+                    scaffoldState.snackbarHostState.showSnackbar(it)
+                    viewModel.resetError()
+                }
+            }
+
+            this.logout = getEnvironment()?.logout()
+
+            email?.let {
+                if (it.isNotEmpty()) logout(it)
+            }
         }
     }
 
-    override fun onCreateOptionsMenu(menu: Menu): Boolean {
-        val inflater = menuInflater
-        inflater.inflate(R.menu.save, menu)
-        return true
-    }
-
-    override fun onPrepareOptionsMenu(menu: Menu): Boolean {
-        val save = menu.findItem(R.id.save)
-        save.isEnabled = saveEnabled
-        return super.onPrepareOptionsMenu(menu)
-    }
-
     private fun logout(email: String) {
-        this.logout.execute()
+        this.logout?.execute()
         ApplicationUtils.startNewDiscoveryActivity(this)
-        startActivity(Intent(this, LoginActivity::class.java)
-                .putExtra(IntentKey.LOGIN_REASON, LoginReason.CHANGE_PASSWORD)
-                .putExtra(IntentKey.EMAIL, email))
+        val intent = Intent(this, LoginToutActivity::class.java)
+        startActivity(
+            intent
+        )
     }
 
-    private fun updateMenu(saveEnabled: Boolean) {
-        this.saveEnabled = saveEnabled
-        invalidateOptionsMenu()
+    override fun onDestroy() {
+        disposables.clear()
+        super.onDestroy()
     }
 }

@@ -2,23 +2,25 @@ package com.kickstarter.mock.factories
 
 import com.kickstarter.services.apiresponses.ShippingRulesEnvelope
 
-class ShippingRulesEnvelopeFactory private constructor() {
+object ShippingRulesEnvelopeFactory {
+    @JvmStatic
+    fun shippingRules(): ShippingRulesEnvelope {
+        return ShippingRulesEnvelope.builder()
+            .shippingRules(
+                listOf(
+                    ShippingRuleFactory.usShippingRule(),
+                    ShippingRuleFactory.germanyShippingRule(),
+                    ShippingRuleFactory.mexicoShippingRule(),
+                    ShippingRuleFactory.canadaShippingRule()
+                )
+            )
+            .build()
+    }
 
-    companion object {
-
-        fun shippingRules(): ShippingRulesEnvelope {
-            return ShippingRulesEnvelope.builder()
-                    .shippingRules(listOf(
-                            ShippingRuleFactory.usShippingRule(),
-                            ShippingRuleFactory.germanyShippingRule())
-                    )
-                    .build()
-        }
-
-        fun emptyShippingRules(): ShippingRulesEnvelope {
-            return ShippingRulesEnvelope.builder()
-                    .shippingRules(listOf())
-                    .build()
-        }
+    @JvmStatic
+    fun emptyShippingRules(): ShippingRulesEnvelope {
+        return ShippingRulesEnvelope.builder()
+            .shippingRules(listOf())
+            .build()
     }
 }

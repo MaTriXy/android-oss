@@ -4,6 +4,8 @@ import android.content.SharedPreferences;
 import android.util.Pair;
 
 import com.kickstarter.libs.RefTag;
+import com.kickstarter.libs.utils.extensions.DiscoveryParamsExtKt;
+import com.kickstarter.libs.utils.extensions.ProjectExt;
 import com.kickstarter.models.Project;
 import com.kickstarter.services.DiscoveryParams;
 
@@ -38,7 +40,7 @@ public final class RefTagUtils {
    * {ref_tag} + {separator} + {time_of_setting}
    */
   protected static @NonNull String cookieValueForRefTag(final @NonNull RefTag refTag) {
-    return refTag.tag() + COOKIE_VALUE_SEPARATOR + String.valueOf(SystemUtils.secondsSinceEpoch());
+    return refTag.tag() + COOKIE_VALUE_SEPARATOR + SystemUtils.secondsSinceEpoch();
   }
 
   /**
@@ -96,7 +98,7 @@ public final class RefTagUtils {
     // Cookie expires on the project deadline, or some days into the future if there is no deadline.
     final DateTime deadline = project.deadline();
     if (deadline != null) {
-      cookie.setMaxAge(ProjectUtils.timeInSecondsUntilDeadline(project));
+      cookie.setMaxAge(ProjectExt.timeInSecondsUntilDeadline(project));
     } else {
       cookie.setMaxAge(new DateTime().plusDays(10).getMillis() / 1000l);
     }
@@ -110,7 +112,7 @@ public final class RefTagUtils {
    */
   public static @NonNull Pair<Project, RefTag> projectAndRefTagFromParamsAndProject(final @NonNull DiscoveryParams params,
     final @NonNull Project project) {
-    final RefTag refTag = project.isFeaturedToday() ? RefTag.categoryFeatured() : DiscoveryParamsUtils.refTag(params);
+    final RefTag refTag = project.isFeaturedToday() ? RefTag.categoryFeatured() : DiscoveryParamsExtKt.refTag(params);
     return new Pair<>(project, refTag);
   }
 

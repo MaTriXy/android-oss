@@ -1,0 +1,248 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    style="@style/CommentCard">
+
+    <androidx.appcompat.widget.AppCompatImageView
+        android:id="@+id/avatar"
+        android:layout_width="@dimen/comments_feed_avatar_width"
+        android:layout_height="@dimen/comments_feed_avatar_height"
+        android:layout_alignParentStart="true"
+        android:layout_marginHorizontal="@dimen/grid_3"
+        android:layout_marginTop="@dimen/grid_3"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        tools:ignore="ContentDescription" />
+
+    <androidx.appcompat.widget.AppCompatTextView
+        android:id="@+id/comment_user_name"
+        style="@style/CommentCardTitle"
+        android:layout_width="0dp"
+        android:ellipsize="end"
+        android:maxLines="1"
+        app:layout_constrainedWidth="true"
+        app:layout_constraintHorizontal_bias="1.0"
+        app:layout_constraintWidth_default="spread"
+        android:layout_marginStart="@dimen/grid_2"
+        app:layout_constraintEnd_toStartOf="@+id/cl_badge"
+        app:layout_constraintBottom_toTopOf="@+id/comment_post_time"
+        app:layout_constraintStart_toEndOf="@+id/avatar"
+        app:layout_constraintTop_toTopOf="@+id/avatar" />
+
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:id="@+id/cl_badge"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginEnd="@dimen/grid_3"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintBottom_toBottomOf="@id/comment_user_name"
+        app:layout_constraintStart_toEndOf="@+id/comment_user_name"
+        app:layout_constraintTop_toTopOf="@+id/comment_user_name">
+
+        <androidx.appcompat.widget.AppCompatTextView
+            android:id="@+id/owner_badge"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="@drawable/rounded_layout"
+            android:backgroundTint="@color/green_alpha_6"
+            android:layout_marginStart="@dimen/grid_1"
+            android:padding="@dimen/grid_1"
+            android:textColor="@color/kds_create_700"
+            android:textStyle="bold"
+            android:visibility="gone"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toEndOf="parent" />
+
+        <androidx.appcompat.widget.AppCompatTextView
+            android:id="@+id/you_badge"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="@dimen/grid_1"
+            android:background="@drawable/rounded_layout"
+            android:backgroundTint="@color/blue_alpha_6"
+            android:paddingStart="@dimen/grid_3_half"
+            android:paddingEnd="@dimen/grid_3_half"
+            android:paddingBottom="@dimen/grid_1"
+            android:paddingTop="@dimen/grid_1"
+            android:text="@string/You"
+            android:textColor="@color/blue_darken_10"
+            android:textStyle="bold"
+            android:visibility="gone"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"/>
+
+        <androidx.appcompat.widget.AppCompatTextView
+            android:id="@+id/superbacker_badge"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:backgroundTint="@color/green_alpha_6"
+            android:layout_marginStart="@dimen/grid_1"
+            android:textColor="@color/kds_celebrate_500"
+            android:textSize="@dimen/badge_superbacker"
+            android:letterSpacing="0.05"
+            android:textStyle="bold"
+            android:text="@string/Superbacker"
+            android:textAllCaps="true"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            android:visibility="gone"
+            tools:visibility="visible"
+            />
+    </androidx.constraintlayout.widget.ConstraintLayout>
+
+    <androidx.appcompat.widget.AppCompatTextView
+        android:id="@+id/comment_post_time"
+        style="@style/FootnotePrimary"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textColor="@color/kds_support_400"
+        android:layout_marginStart="@dimen/grid_2"
+        app:layout_constraintBottom_toBottomOf="@id/avatar"
+        app:layout_constraintStart_toEndOf="@+id/avatar"
+        app:layout_constraintTop_toBottomOf="@+id/comment_user_name" />
+
+    <androidx.appcompat.widget.AppCompatTextView
+        android:id="@+id/comment_body"
+        style="@style/CommentCardBody"
+        android:text="@string/A_successfully_funded_project_will_collect_your_pledge_in_its_native_currency"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="@id/avatar"
+        app:layout_constraintTop_toBottomOf="@id/avatar" />
+
+    <androidx.appcompat.widget.AppCompatTextView
+        android:id="@+id/replies"
+        app:layout_constraintTop_toBottomOf="@id/comment_body"
+        android:background="@drawable/rect_trans_rounded_darker"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="@id/avatar"
+        android:drawableRight="@drawable/ic_mask"
+        android:layout_marginStart="@dimen/grid_3"
+        android:layout_marginEnd="@dimen/grid_3"
+        android:text="@string/View_replies"
+        app:layout_constraintBottom_toTopOf="@+id/reply_button"
+        app:layout_goneMarginBottom="@dimen/grid_3"
+        app:layout_goneMarginTop="@dimen/grid_10"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"/>
+
+    <androidx.appcompat.widget.AppCompatButton
+        android:id="@+id/reply_button"
+        style="@style/CommentsReplyButton"
+        android:drawableStart="@drawable/ic_arrow_reply"
+        android:text="@string/general_navigation_buttons_reply"
+        android:layout_marginTop="@dimen/grid_3"
+        app:layout_goneMarginTop="@dimen/grid_none"
+        android:layout_marginStart="@dimen/grid_none"
+        app:layout_constraintBottom_toTopOf="@+id/separtor"
+        app:layout_constraintStart_toStartOf="@id/avatar"
+        app:layout_constraintTop_toBottomOf="@id/replies" />
+
+    <androidx.appcompat.widget.AppCompatImageView
+        android:id="@+id/retry_button"
+        style="@style/CommentsReplyButton"
+        android:layout_marginStart="@dimen/grid_none"
+        android:layout_marginTop="@dimen/grid_0"
+        app:layout_constraintTop_toTopOf="@id/retry_message"
+        app:layout_constraintTop_toBottomOf="@id/replies"
+        app:layout_constraintStart_toStartOf="@id/avatar"
+        android:src="@drawable/ic_retry_send_comment" />
+
+    <androidx.appcompat.widget.AppCompatTextView
+        android:id="@+id/retry_message"
+        style="@style/CommentsRetryButton"
+        android:layout_width="@dimen/grid_none"
+        android:gravity="start"
+        android:text="@string/Couldnt_post"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toEndOf="@id/retry_button"
+        app:layout_constraintTop_toBottomOf="@id/replies"
+        app:layout_constraintBottom_toTopOf="@+id/separtor"/>
+
+    <androidx.appcompat.widget.AppCompatButton
+        android:id="@+id/posting_button"
+        style="@style/CommentsReplyButton"
+        android:drawableTint="@color/kds_support_400"
+        android:drawableStart="@drawable/ic_retry_send_comment"
+        android:text="@string/Posting"
+        android:visibility="gone"
+        android:layout_marginStart="@dimen/grid_none"
+        app:layout_constraintBottom_toTopOf="@+id/separtor"
+        app:layout_constraintStart_toStartOf="@id/avatar"
+        app:layout_constraintTop_toBottomOf="@id/comment_body" />
+
+    <androidx.appcompat.widget.AppCompatButton
+        android:id="@+id/posted_button"
+        style="@style/CommentsReplyButton"
+        android:textColor="@color/kds_create_700"
+        android:drawableStart="@drawable/ic_posted_check"
+        android:text="@string/Posted"
+        android:visibility="gone"
+        android:layout_marginStart="@dimen/grid_none"
+        app:layout_constraintBottom_toTopOf="@+id/separtor"
+        app:layout_constraintStart_toStartOf="@id/avatar"
+        app:layout_constraintTop_toBottomOf="@id/comment_body" />
+
+    <androidx.appcompat.widget.AppCompatImageView
+        android:id="@+id/info_button"
+        style="@style/CommentsInfoIcon"
+        android:src="@drawable/ic_info"
+        app:layout_constraintTop_toBottomOf="@+id/avatar"
+        app:layout_constraintStart_toStartOf="@id/avatar" />
+
+    <androidx.appcompat.widget.AppCompatTextView
+        android:id="@+id/removed_message"
+        style="@style/CommentCardFlaggedMessage"
+        android:visibility="gone"
+        android:text="@string/This_comment_has_been_removed_by_Kickstarter"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toEndOf="@id/info_button"
+        app:layout_constraintTop_toBottomOf="@id/avatar"
+        app:layout_constraintBottom_toTopOf="@id/replies"
+        tools:visibility="visible"/>
+
+    <androidx.appcompat.widget.AppCompatTextView
+        android:id="@+id/flagged_message"
+        style="@style/CommentCardFlaggedMessage"
+        android:visibility="gone"
+        android:text="@string/This_comment_is_under_review_for_potentially_violating_kickstarters_community_guidelines"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toEndOf="@id/info_button"
+        app:layout_constraintTop_toBottomOf="@id/avatar"
+        app:layout_constraintBottom_toTopOf="@id/replies"
+        tools:visibility="visible"/>
+
+    <androidx.appcompat.widget.AppCompatTextView
+        android:id="@+id/canceled_pledge_message"
+        style="@style/CommentCardFlaggedMessage"
+        android:text="@string/This_person_canceled_their_pledge"
+        android:visibility="gone"
+        android:paddingBottom="@dimen/grid_7_half"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="@id/avatar"
+        app:layout_constraintTop_toBottomOf="@id/avatar"
+        tools:visibility="visible" />
+
+    <View
+        android:id="@+id/separtor"
+        android:layout_width="0dp"
+        android:layout_height="1dp"
+        android:background="@color/kds_support_200"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent" />
+
+    <androidx.constraintlayout.widget.Group
+        android:id="@+id/retry_button_group"
+        android:layout_width="wrap_content"
+        android:visibility="gone"
+        app:layout_constraintBottom_toTopOf="@id/separtor"
+        android:layout_height="wrap_content"
+        tools:visibility="visible"
+        app:constraint_referenced_ids="retry_button,retry_message" />
+
+</androidx.constraintlayout.widget.ConstraintLayout>

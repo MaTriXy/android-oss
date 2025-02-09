@@ -1,29 +1,52 @@
 package com.kickstarter.viewmodels
 
 import android.util.Pair
-import androidx.annotation.NonNull
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
 import com.kickstarter.R
 import com.kickstarter.libs.Either
 import com.kickstarter.libs.Environment
-import com.kickstarter.libs.FragmentViewModel
 import com.kickstarter.libs.KSString
-import com.kickstarter.libs.rx.transformers.Transformers.*
-import com.kickstarter.libs.utils.*
+import com.kickstarter.libs.featureflag.FlagKey
+import com.kickstarter.libs.rx.transformers.Transformers.combineLatestPair
+import com.kickstarter.libs.rx.transformers.Transformers.neverErrorV2
+import com.kickstarter.libs.rx.transformers.Transformers.takePairWhenV2
+import com.kickstarter.libs.utils.DateTimeUtils
+import com.kickstarter.libs.utils.NumberUtils
+import com.kickstarter.libs.utils.ProjectViewUtils
+import com.kickstarter.libs.utils.RewardUtils
+import com.kickstarter.libs.utils.extensions.addToDisposable
+import com.kickstarter.libs.utils.extensions.backedReward
+import com.kickstarter.libs.utils.extensions.isErrored
+import com.kickstarter.libs.utils.extensions.isErroredWithPLOT
+import com.kickstarter.libs.utils.extensions.isNotNull
+import com.kickstarter.libs.utils.extensions.isNull
+import com.kickstarter.libs.utils.extensions.negate
+import com.kickstarter.libs.utils.extensions.userIsCreator
+import com.kickstarter.mock.factories.RewardFactory
 import com.kickstarter.models.Backing
+import com.kickstarter.models.PaymentIncrement
+import com.kickstarter.models.PaymentSource
 import com.kickstarter.models.Project
 import com.kickstarter.models.Reward
 import com.kickstarter.models.StoredCard
+import com.kickstarter.models.User
+import com.kickstarter.models.extensions.getCardTypeDrawable
+import com.kickstarter.type.CreditCardPaymentType
+import com.kickstarter.type.CreditCardTypes
 import com.kickstarter.ui.data.PledgeStatusData
+import com.kickstarter.ui.data.PlotData
 import com.kickstarter.ui.data.ProjectData
 import com.kickstarter.ui.fragments.BackingFragment
 import com.stripe.android.model.Card
-import rx.Observable
-import rx.subjects.BehaviorSubject
-import rx.subjects.PublishSubject
-import type.CreditCardPaymentType
-import type.CreditCardTypes
+import com.stripe.android.model.CardBrand
+import io.reactivex.Observable
+import io.reactivex.disposables.CompositeDisposable
+import io.reactivex.subjects.BehaviorSubject
+import io.reactivex.subjects.PublishSubject
+import org.joda.time.DateTime
 import java.text.SimpleDateFormat
-import java.util.*
+import java.util.Locale
 import java.util.concurrent.TimeUnit
 
 interface BackingFragmentViewModel {
@@ -42,6 +65,8 @@ interface BackingFragmentViewModel {
 
         /** Call when the swipe refresh layout is triggered. */
         fun refreshProject()
+
+        fun isExpanded(state: Boolean?)
     }
 
     interface Outputs {
@@ -66,6 +91,9 @@ interface BackingFragmentViewModel {
         /** Emits the card brand drawable to display. */
         fun cardLogo(): Observable<Int>
 
+        /** Emits a boolean determining if the beta badge should be visible. */
+        fun betaBadgeIsGone(): Observable<Boolean>
+
         /** Emits a boolean determining if the fix payment method button should be visible. */
         fun fixPaymentMethodButtonIsGone(): Observable<Boolean>
 
@@ -73,10 +101,10 @@ interface BackingFragmentViewModel {
         fun fixPaymentMethodMessageIsGone(): Observable<Boolean>
 
         /** Emits when we should notify the [BackingFragment.BackingDelegate] to refresh the project. */
-        fun notifyDelegateToRefreshProject(): Observable<Void>
+        fun notifyDelegateToRefreshProject(): Observable<Unit>
 
         /** Call when the [BackingFragment.BackingDelegate] should be notified to show the fix pledge flow. */
-        fun notifyDelegateToShowFixPledge(): Observable<Void>
+        fun notifyDelegateToShowFixPledge(): Observable<Unit>
 
         /** Emits a boolean determining if the payment method section should be visible. */
         fun paymentMethodIsGone(): Observable<Boolean>
@@ -96,11 +124,17 @@ interface BackingFragmentViewModel {
         /** Emits the [ProjectData] and currently backed [Reward]. */
         fun projectDataAndReward(): Observable<Pair<ProjectData, Reward>>
 
+        /** Emits the [ProjectData] and currently selected AddOns: [List<Reward>]. */
+        fun projectDataAndAddOns(): Observable<Pair<ProjectData, List<Reward>>>
+
         /** Emits a boolean that determines if received checkbox should be checked. */
         fun receivedCheckboxChecked(): Observable<Boolean>
 
-        /** Emits a boolean determining if the delivered section should be visible. */
+        /** Emits a boolean determining if the delivered section should be visible for the backer perspective. */
         fun receivedSectionIsGone(): Observable<Boolean>
+
+        /** Emits a boolean determining if the delivered section should be visible for the creator perspective. */
+        fun receivedSectionCreatorIsGone(): Observable<Boolean>
 
         /** Emits the shipping amount of the backing. */
         fun shippingAmount(): Observable<CharSequence>
@@ -112,22 +146,38 @@ interface BackingFragmentViewModel {
         fun shippingSummaryIsGone(): Observable<Boolean>
 
         /** Emits when the backing has successfully been updated. */
-        fun showUpdatePledgeSuccess(): Observable<Void>
+        fun showUpdatePledgeSuccess(): Observable<Unit>
 
         /** Emits a boolean determining if the swipe refresher is visible. */
         fun swipeRefresherProgressIsVisible(): Observable<Boolean>
 
         /** Emits the total amount pledged. */
         fun totalAmount(): Observable<CharSequence>
+
+        /** Emits the bonus support added to the pledge, if any **/
+        fun bonusSupport(): Observable<CharSequence>
+
+        /** Emits the estimated delivery date of this reward **/
+        fun estimatedDelivery(): Observable<String>
+
+        /** Emits a boolean determining if the delivery disclaimer section is visible **/
+        fun deliveryDisclaimerSectionIsGone(): Observable<Boolean>
+
+        /** Emits the payment increments **/
+        fun paymentIncrements(): Observable<List<PaymentIncrement>>
+
+        /** Emits whether the pledge is a PLOT pledge. */
+        fun pledgeIsPlot(): Observable<Boolean>
     }
 
-    class ViewModel(@NonNull val environment: Environment) : FragmentViewModel<BackingFragment>(environment), Inputs, Outputs {
+    class BackingFragmentViewModel(val environment: Environment) : ViewModel(), Inputs, Outputs {
 
-        private val fixPaymentMethodButtonClicked = PublishSubject.create<Void>()
-        private val pledgeSuccessfullyCancelled = PublishSubject.create<Void>()
+        private val fixPaymentMethodButtonClicked = PublishSubject.create<Unit>()
+        private val pledgeSuccessfullyCancelled = PublishSubject.create<Unit>()
         private val projectDataInput = PublishSubject.create<ProjectData>()
         private val receivedCheckboxToggled = PublishSubject.create<Boolean>()
-        private val refreshProject = PublishSubject.create<Void>()
+        private val refreshProject = PublishSubject.create<Unit>()
+        private val isExpanded = PublishSubject.create<Boolean>()
 
         private val backerAvatar = BehaviorSubject.create<String>()
         private val backerName = BehaviorSubject.create<String>()
@@ -138,8 +188,9 @@ interface BackingFragmentViewModel {
         private val cardLogo = BehaviorSubject.create<Int>()
         private val fixPaymentMethodButtonIsGone = BehaviorSubject.create<Boolean>()
         private val fixPaymentMethodMessageIsGone = BehaviorSubject.create<Boolean>()
-        private val notifyDelegateToRefreshProject = PublishSubject.create<Void>()
-        private val notifyDelegateToShowFixPledge = PublishSubject.create<Void>()
+        private val betaBadgeIsGone = BehaviorSubject.create<Boolean>()
+        private val notifyDelegateToRefreshProject = PublishSubject.create<Unit>()
+        private val notifyDelegateToShowFixPledge = PublishSubject.create<Unit>()
         private val paymentMethodIsGone = BehaviorSubject.create<Boolean>()
         private val pledgeAmount = BehaviorSubject.create<CharSequence>()
         private val pledgeDate = BehaviorSubject.create<String>()
@@ -148,250 +199,478 @@ interface BackingFragmentViewModel {
         private val projectDataAndReward = BehaviorSubject.create<Pair<ProjectData, Reward>>()
         private val receivedCheckboxChecked = BehaviorSubject.create<Boolean>()
         private val receivedSectionIsGone = BehaviorSubject.create<Boolean>()
+        private val receivedSectionCreatorIsGone = BehaviorSubject.create<Boolean>()
         private val shippingAmount = BehaviorSubject.create<CharSequence>()
         private val shippingLocation = BehaviorSubject.create<String>()
         private val shippingSummaryIsGone = BehaviorSubject.create<Boolean>()
-        private val showUpdatePledgeSuccess = PublishSubject.create<Void>()
+        private val showUpdatePledgeSuccess = PublishSubject.create<Unit>()
         private val swipeRefresherProgressIsVisible = BehaviorSubject.create<Boolean>()
         private val totalAmount = BehaviorSubject.create<CharSequence>()
-
-        private val apiClient = this.environment.apiClient()
-        private val apolloClient = this.environment.apolloClient()
-        private val ksCurrency = this.environment.ksCurrency()
-        val ksString: KSString = this.environment.ksString()
-
+        private val addOnsList = BehaviorSubject.create<Pair<ProjectData, List<Reward>>>()
+        private val bonusSupport = BehaviorSubject.create<CharSequence>()
+        private val estimatedDelivery = BehaviorSubject.create<String>()
+        private val deliveryDisclaimerSectionIsGone = BehaviorSubject.create<Boolean>()
+        private val paymentIncrements = BehaviorSubject.create<List<PaymentIncrement>>()
+        private val pledgeIsPlot = BehaviorSubject.create<Boolean>()
+        private val apiClient = requireNotNull(this.environment.apiClientV2())
+        private val apolloClient = requireNotNull(this.environment.apolloClientV2())
+        private val ksCurrency = requireNotNull(this.environment.ksCurrency())
+        private val analyticEvents = requireNotNull(this.environment.analytics())
+        val ksString: KSString? = this.environment.ksString()
+        private val currentUser = requireNotNull(this.environment.currentUserV2())
+        private val disposables = CompositeDisposable()
         val inputs: Inputs = this
         val outputs: Outputs = this
 
         init {
 
             this.pledgeSuccessfullyCancelled
-                    .compose(bindToLifecycle())
-                    .subscribe(this.showUpdatePledgeSuccess)
-
-            val backedProject = this.projectDataInput
-                    .map { it.project() }
-                    .filter { it.isBacking }
-
-            val backing = backedProject
-                    .switchMap { it.slug()?.let { slug -> this.apolloClient.getProjectBacking(slug) } }
-                    .compose(neverError())
-                    .share()
-                    .filter { ObjectUtils.isNotNull(it) }
-
-            backing
-                    .map { it.backerName() }
-                    .compose(bindToLifecycle())
-                    .subscribe(this.backerName)
-
-            backing
-                    .map { it.backerUrl() }
-                    .compose(bindToLifecycle())
-                    .subscribe(this.backerAvatar)
+                .subscribe { this.showUpdatePledgeSuccess.onNext(it) }
+                .addToDisposable(disposables)
 
             this.projectDataInput
-                    .filter { it.project().isBacking }
-                    .map { projectData -> BackingUtils.backedReward(projectData.project())?.let { Pair(projectData, it) } }
-                    .compose(bindToLifecycle())
-                    .subscribe(this.projectDataAndReward)
+                .filter { it.project().isBacking() || it.project().userIsCreator(it.user()) }
+                .map { projectData -> joinProjectDataAndReward(projectData) }
+                .subscribe { this.projectDataAndReward.onNext(it) }
+                .addToDisposable(disposables)
+
+            val backedProject = this.projectDataInput
+                .map { it.project() }
+
+            val backing = this.projectDataInput
+                .switchMap { getBackingInfo(it) }
+                .compose(neverErrorV2())
+                .filter { it.isNotNull() }
+                .share()
+
+            val rewardA = backing
+                .filter { it.reward().isNotNull() }
+                .map { requireNotNull(it.reward()) }
+
+            val rewardB = projectDataAndReward
+                .filter { it.second.isNotNull() }
+                .map { requireNotNull(it.second) }
+
+            val reward = Observable.merge(rewardA, rewardB)
+                .distinctUntilChanged()
+
+            val isCreator = Observable.combineLatest(
+                this.currentUser.observable(),
+                backedProject
+            ) { user, project ->
+                Pair(user, project)
+            }
+                .map { it.second.userIsCreator(it.first.getValue()) }
 
             backing
-                    .map { NumberUtils.format(it.sequence().toFloat()) }
-                    .distinctUntilChanged()
-                    .compose(bindToLifecycle())
-                    .subscribe(this.backerNumber)
+                .map { it.paymentIncrements ?: emptyList() }
+                .distinctUntilChanged()
+                .subscribe { this.paymentIncrements.onNext(it) }
+                .addToDisposable(disposables)
 
             backing
-                    .map { DateTimeUtils.longDate(it.pledgedAt()) }
-                    .distinctUntilChanged()
-                    .compose(bindToLifecycle())
-                    .subscribe(this.pledgeDate)
+                .map { !it.paymentIncrements.isNullOrEmpty() } // Check if payment increments exist so it means that the pledge was PLOT selected or not
+                .distinctUntilChanged()
+                .subscribe { this.pledgeIsPlot.onNext(it) }
+                .addToDisposable(disposables)
 
             backing
-                    .map { it.amount() - it.shippingAmount() }
-                    .compose<Pair<Double, Project>>(combineLatestPair(backedProject))
-                    .map { ProjectViewUtils.styleCurrency(it.first, it.second, this.ksCurrency) }
-                    .distinctUntilChanged()
-                    .compose(bindToLifecycle())
-                    .subscribe(this.pledgeAmount)
+                .filter { it.backerName().isNotNull() }
+                .map { requireNotNull(it.backerName()) }
+                .subscribe { this.backerName.onNext(it) }
+                .addToDisposable(disposables)
 
             backing
-                    .map { ObjectUtils.isNull(it.locationId()) }
-                    .distinctUntilChanged()
-                    .compose(bindToLifecycle())
-                    .subscribe {
-                        this.pledgeSummaryIsGone.onNext(it)
-                        this.shippingSummaryIsGone.onNext(it)
-                    }
-
-            Observable.combineLatest(backedProject, backing) { p, b -> Pair(p, b)}
-                    .map { pledgeStatusData(it.first, it.second) }
-                    .distinctUntilChanged()
-                    .compose(bindToLifecycle())
-                    .subscribe(this.pledgeStatusData)
+                .filter { it.backerUrl().isNotNull() }
+                .map { requireNotNull(it.backerUrl()) }
+                .subscribe { this.backerAvatar.onNext(it) }
+                .addToDisposable(disposables)
 
             backing
-                    .map { it.shippingAmount() }
-                    .compose<Pair<Float, Project>>(combineLatestPair(backedProject))
-                    .map { ProjectViewUtils.styleCurrency(it.first.toDouble(), it.second, this.ksCurrency) }
-                    .distinctUntilChanged()
-                    .compose(bindToLifecycle())
-                    .subscribe(this.shippingAmount)
+                .map { NumberUtils.format(it.sequence().toFloat()) }
+                .distinctUntilChanged()
+                .subscribe { this.backerNumber.onNext(it) }
+                .addToDisposable(disposables)
 
             backing
-                    .map { it.locationName()?.let { name -> name } }
-                    .distinctUntilChanged()
-                    .compose(bindToLifecycle())
-                    .subscribe(this.shippingLocation)
+                .filter { it.pledgedAt().isNotNull() }
+                .map { DateTimeUtils.longDate(requireNotNull(it.pledgedAt())) }
+                .distinctUntilChanged()
+                .subscribe { this.pledgeDate.onNext(it) }
+                .addToDisposable(disposables)
 
             backing
-                    .map { it.amount() }
-                    .compose<Pair<Double, Project>>(combineLatestPair(backedProject))
-                    .map { ProjectViewUtils.styleCurrency(it.first, it.second, this.ksCurrency) }
-                    .distinctUntilChanged()
-                    .compose(bindToLifecycle())
-                    .subscribe(this.totalAmount)
+                .map { it.amount() - it.shippingAmount() - it.bonusAmount() }
+                .filter { it.isNotNull() }
+                .compose<Pair<Double, Project>>(combineLatestPair(backedProject))
+                .map { ProjectViewUtils.styleCurrency(it.first, it.second, this.ksCurrency) }
+                .distinctUntilChanged()
+                .subscribe { this.pledgeAmount.onNext(it) }
+                .addToDisposable(disposables)
 
             backing
-                    .map { it.paymentSource() }
-                    .map { CreditCardPaymentType.safeValueOf(it?.paymentType()) }
-                    .map { it == CreditCardPaymentType.ANDROID_PAY || it == CreditCardPaymentType.APPLE_PAY || it == CreditCardPaymentType.CREDIT_CARD }
-                    .map { BooleanUtils.negate(it) }
-                    .distinctUntilChanged()
-                    .compose(bindToLifecycle())
-                    .subscribe(this.paymentMethodIsGone)
+                .map {
+                    shouldHideShipping(it)
+                }
+                .distinctUntilChanged()
+                .subscribe {
+                    this.shippingSummaryIsGone.onNext(it)
+                }.addToDisposable(disposables)
+
+            backing
+                .map { it.reward().isNull() }
+                .distinctUntilChanged()
+                .subscribe {
+                    this.pledgeSummaryIsGone.onNext(it)
+                }.addToDisposable(disposables)
+
+            Observable.combineLatest(
+                backedProject,
+                backing,
+                this.currentUser.loggedInUser()
+            ) { p, b, user -> Triple(p, b, user) }
+                .map { pledgeStatusData(it.first, it.second, it.third) }
+                .distinctUntilChanged()
+                .subscribe { this.pledgeStatusData.onNext(it) }
+                .addToDisposable(disposables)
+
+            backing
+                .filter { it.shippingAmount().isNotNull() }
+                .map { requireNotNull(it.shippingAmount()) }
+                .compose<Pair<Float, Project>>(combineLatestPair(backedProject))
+                .map {
+                    ProjectViewUtils.styleCurrency(
+                        it.first.toDouble(),
+                        it.second,
+                        this.ksCurrency
+                    )
+                }
+                .distinctUntilChanged()
+                .subscribe { this.shippingAmount.onNext(it) }
+                .addToDisposable(disposables)
+
+            backing
+                .filter { it.locationName().isNotNull() }
+                .map { requireNotNull(it.locationName()) }
+                .distinctUntilChanged()
+                .subscribe { this.shippingLocation.onNext(it) }
+                .addToDisposable(disposables)
+
+            backing
+                .filter { it.amount().isNotNull() }
+                .map { it.amount() }
+                .compose<Pair<Double, Project>>(combineLatestPair(backedProject))
+                .map { ProjectViewUtils.styleCurrency(it.first, it.second, this.ksCurrency) }
+                .distinctUntilChanged()
+                .subscribe { this.totalAmount.onNext(it) }
+                .addToDisposable(disposables)
+
+            backing
+                .map { CreditCardPaymentType.safeValueOf(it.paymentSource()?.paymentType() ?: "") }
+                .map { it == CreditCardPaymentType.ANDROID_PAY || it == CreditCardPaymentType.APPLE_PAY || it == CreditCardPaymentType.CREDIT_CARD }
+                .map { it.negate() }
+                .distinctUntilChanged()
+                .subscribe { this.paymentMethodIsGone.onNext(it) }
+                .addToDisposable(disposables)
 
             val paymentSource = backing
-                    .map { it.paymentSource() }
-                    .filter { it != null }
-                    .ofType(Backing.PaymentSource::class.java)
+                .filter { it.paymentSource().isNotNull() }
+                .map { requireNotNull(it.paymentSource()) }
+                .ofType(PaymentSource::class.java)
 
             val simpleDateFormat = SimpleDateFormat(StoredCard.DATE_FORMAT, Locale.getDefault())
 
             paymentSource
-                    .map { source -> source.expirationDate()?.let { simpleDateFormat.format(it) }?: "" }
-                    .distinctUntilChanged()
-                    .compose(bindToLifecycle())
-                    .subscribe(this.cardExpiration)
+                .map { source ->
+                    source.expirationDate()?.let { simpleDateFormat.format(it) } ?: ""
+                }
+                .distinctUntilChanged()
+                .subscribe { this.cardExpiration.onNext(it) }
+                .addToDisposable(disposables)
 
             paymentSource
-                    .map { cardIssuer(it) }
-                    .distinctUntilChanged()
-                    .compose(bindToLifecycle())
-                    .subscribe(this.cardIssuer)
+                .map { cardIssuer(it) }
+                .distinctUntilChanged()
+                .subscribe { this.cardIssuer.onNext(it) }
+                .addToDisposable(disposables)
 
             paymentSource
-                    .map { it.lastFour()?: "" }
-                    .distinctUntilChanged()
-                    .compose(bindToLifecycle())
-                    .subscribe(this.cardLastFour)
+                .map { it.lastFour() ?: "" }
+                .distinctUntilChanged()
+                .subscribe { this.cardLastFour.onNext(it) }
+                .addToDisposable(disposables)
 
             paymentSource
-                    .map { cardLogo(it) }
-                    .distinctUntilChanged()
-                    .compose(bindToLifecycle())
-                    .subscribe(this.cardLogo)
+                .map { cardLogo(it) }
+                .distinctUntilChanged()
+                .subscribe { this.cardLogo.onNext(it) }
+                .addToDisposable(disposables)
+
+            val backingIsErroredWithPlot = backing
+                .map { it.isErroredWithPLOT() }
+                .distinctUntilChanged()
+                .map { it.negate() }
+
+            backingIsErroredWithPlot.subscribe { this.betaBadgeIsGone.onNext(it) }
+                .addToDisposable(disposables)
 
             val backingIsNotErrored = backing
-                    .map { BackingUtils.isErrored(it) }
-                    .distinctUntilChanged()
-                    .map { BooleanUtils.negate(it) }
+                .map { it.isErrored() && !it.isErroredWithPLOT() }
+                .distinctUntilChanged()
+                .map { it.negate() }
 
             backingIsNotErrored
-                    .compose(bindToLifecycle())
-                    .subscribe { this.fixPaymentMethodButtonIsGone.onNext(it) }
+                .subscribe { this.fixPaymentMethodButtonIsGone.onNext(it) }
+                .addToDisposable(disposables)
 
             backingIsNotErrored
-                    .compose(bindToLifecycle())
-                    .subscribe { this.fixPaymentMethodMessageIsGone.onNext(it) }
+                .subscribe { this.fixPaymentMethodMessageIsGone.onNext(it) }
+                .addToDisposable(disposables)
 
             this.fixPaymentMethodButtonClicked
-                    .compose(bindToLifecycle())
-                    .subscribe { this.notifyDelegateToShowFixPledge.onNext(null) }
+                .subscribe { this.notifyDelegateToShowFixPledge.onNext(Unit) }
+                .addToDisposable(disposables)
 
             backing
-                    .map { it.backerCompletedAt() }
-                    .map { ObjectUtils.isNotNull(it) }
-                    .distinctUntilChanged()
-                    .compose(bindToLifecycle<Boolean>())
-                    .subscribe(this.receivedCheckboxChecked)
+                .map { it.completedByBacker() }
+                .distinctUntilChanged()
+                .subscribe { this.receivedCheckboxChecked.onNext(it) }
+                .addToDisposable(disposables)
 
             backing
-                    .compose<Pair<Backing, Project>>(combineLatestPair(backedProject))
-                    // combine the project, backing, and checked boolean (<<Project,Backing>, Checked>) to make client call
-                    .compose(takePairWhen<Pair<Backing, Project>, Boolean>(this.receivedCheckboxToggled))
-                    .switchMap { this.apiClient.postBacking(it.first.second, it.first.first, it.second).compose(neverError()) }
-                    .compose(bindToLifecycle())
-                    .share()
-                    .subscribe()
+                .compose<Pair<Backing, Project>>(combineLatestPair(backedProject))
+                .compose(takePairWhenV2(this.receivedCheckboxToggled))
+                .switchMap {
+                    this.apiClient.postBacking(it.first.second, it.first.first, it.second)
+                        .compose(neverErrorV2())
+                }
+                .share()
+                .subscribe()
 
-            val rewardIsReceivable = backing
-                    .map { ObjectUtils.isNotNull(it.rewardId()) }
+            this.isExpanded
+                .filter { it }
+                .compose(combineLatestPair(backing))
+                .map { it.second }
+                .compose<Pair<Backing, ProjectData>>(combineLatestPair(projectDataInput))
+                .subscribe {
+                    this.analyticEvents.trackManagePledgePageViewed(it.first, it.second)
+                }.addToDisposable(disposables)
+
+            val rewardIsReceivable = reward
+                .map {
+                    RewardUtils.isReward(it) && it.estimatedDeliveryOn().isNotNull()
+                }
 
             val backingIsCollected = backing
-                    .map { it.status() }
-                    .map { it == Backing.STATUS_COLLECTED }
+                .map { it.status() }
+                .map { it == Backing.STATUS_COLLECTED }
+                .distinctUntilChanged()
 
-            rewardIsReceivable
-                    .compose(combineLatestPair<Boolean, Boolean>(backingIsCollected))
-                    .map { it.first && it.second }
-                    .map { BooleanUtils.negate(it) }
-                    .distinctUntilChanged()
-                    .compose(bindToLifecycle())
-                    .subscribe(this.receivedSectionIsGone)
+            val sectionShouldBeGone = rewardIsReceivable
+                .compose(combineLatestPair<Boolean, Boolean>(backingIsCollected))
+                .map { it.first && it.second }
+                .map { it.negate() }
+                .distinctUntilChanged()
+
+            sectionShouldBeGone
+                .compose<Pair<Boolean, Boolean>>(combineLatestPair(isCreator))
+                .subscribe {
+                    val isUserCreator = it.second
+                    val shouldBeGone = it.first
+
+                    if (isUserCreator) {
+                        this.receivedSectionIsGone.onNext(true)
+                        this.receivedSectionCreatorIsGone.onNext(shouldBeGone)
+                    } else {
+                        this.receivedSectionIsGone.onNext(shouldBeGone)
+                        this.receivedSectionCreatorIsGone.onNext(true)
+                    }
+                }.addToDisposable(disposables)
 
             this.refreshProject
-                    .compose(bindToLifecycle())
-                    .subscribe {
-                        this.notifyDelegateToRefreshProject.onNext(null)
-                        this.swipeRefresherProgressIsVisible.onNext(true)
-                    }
+                .subscribe {
+                    this.notifyDelegateToRefreshProject.onNext(Unit)
+                    this.swipeRefresherProgressIsVisible.onNext(true)
+                }.addToDisposable(disposables)
 
             val refreshTimeout = this.notifyDelegateToRefreshProject
-                    .delay(10, TimeUnit.SECONDS)
+                .delay(10, TimeUnit.SECONDS)
 
             Observable.merge(refreshTimeout, backedProject.skip(1))
-                    .map { false }
-                    .compose(bindToLifecycle())
-                    .subscribe(this.swipeRefresherProgressIsVisible)
+                .map { false }
+                .subscribe { this.swipeRefresherProgressIsVisible.onNext(it) }
+                .addToDisposable(disposables)
+
+            val addOns = backing
+                .map { it.addOns()?.toList() ?: emptyList() }
+
+            projectDataInput
+                .compose<Pair<ProjectData, List<Reward>>>(combineLatestPair(addOns))
+                .subscribe { this.addOnsList.onNext(it) }
+                .addToDisposable(disposables)
+
+            backing
+                .filter { it.bonusAmount().isNotNull() }
+                .map { requireNotNull(it.bonusAmount()) }
+                .compose<Pair<Double, Project>>(combineLatestPair(backedProject))
+                .map { ProjectViewUtils.styleCurrency(it.first, it.second, this.ksCurrency) }
+                .distinctUntilChanged()
+                .subscribe { this.bonusSupport.onNext(it) }
+                .addToDisposable(disposables)
+
+            reward
+                .filter { RewardUtils.isReward(it) && it.estimatedDeliveryOn().isNotNull() }
+                .map<DateTime> { it.estimatedDeliveryOn() }
+                .map { DateTimeUtils.estimatedDeliveryOn(it) }
+                .subscribe { this.estimatedDelivery.onNext(it) }
+                .addToDisposable(disposables)
+
+            isCreator
+                .subscribe { this.deliveryDisclaimerSectionIsGone.onNext(it) }
+                .addToDisposable(disposables)
         }
 
-        private fun cardIssuer(paymentSource: Backing.PaymentSource) : Either<String, Int> {
-            return when (CreditCardPaymentType.safeValueOf(paymentSource.paymentType())) {
-                CreditCardPaymentType.ANDROID_PAY -> Either.Right(R.string.googlepay_button_content_description)
-                CreditCardPaymentType.APPLE_PAY -> Either.Right(R.string.apple_pay_content_description)
-                CreditCardPaymentType.CREDIT_CARD -> Either.Left(StoredCard.issuer(CreditCardTypes.safeValueOf(paymentSource.type())))
-                else -> Either.Left(Card.CardBrand.UNKNOWN)
+        private fun shouldHideShipping(it: Backing) =
+            it.locationId().isNull() || it.reward()?.let { rw ->
+                RewardUtils.isLocalPickup(rw)
+            } ?: true
+
+        private fun getBackingInfo(it: ProjectData): Observable<Backing> {
+            return if (it.backing() == null) {
+                this.apolloClient.getProjectBacking(it.project().slug() ?: "")
+            } else {
+                Observable.just(it.backing())
             }
         }
 
-        private fun cardLogo(paymentSource: Backing.PaymentSource) : Int {
+        private fun joinProjectDataAndReward(projectData: ProjectData): Pair<ProjectData, Reward> {
+            val reward = projectData.backing()?.reward()
+                ?: projectData.project().backing()?.backedReward(projectData.project())
+                ?: RewardFactory.noReward().toBuilder()
+                    .minimum(projectData.backing()?.amount() ?: 1.0)
+                    .build()
+
+            return Pair(projectData, reward)
+        }
+
+        private fun cardIssuer(paymentSource: PaymentSource): Either<String, Int> {
+            return when (CreditCardPaymentType.safeValueOf(paymentSource.paymentType())) {
+                CreditCardPaymentType.ANDROID_PAY -> Either.Right(R.string.googlepay_button_content_description)
+                CreditCardPaymentType.APPLE_PAY -> Either.Right(R.string.apple_pay_content_description)
+                CreditCardPaymentType.CREDIT_CARD -> Either.Left(
+                    StoredCard.issuer(
+                        CreditCardTypes.safeValueOf(
+                            paymentSource.type() ?: ""
+                        )
+                    )
+                )
+
+                else -> Either.Left(CardBrand.Unknown.code)
+            }
+        }
+
+        private fun cardLogo(paymentSource: PaymentSource): Int {
             return when (CreditCardPaymentType.safeValueOf(paymentSource.paymentType())) {
                 CreditCardPaymentType.ANDROID_PAY -> R.drawable.google_pay_mark
                 CreditCardPaymentType.APPLE_PAY -> R.drawable.apple_pay_mark
-                CreditCardPaymentType.CREDIT_CARD -> StoredCard.getCardTypeDrawable(CreditCardTypes.safeValueOf(paymentSource.type()))
+                CreditCardPaymentType.CREDIT_CARD -> paymentSource.getCardTypeDrawable()
                 else -> R.drawable.generic_bank_md
             }
         }
 
-        private fun pledgeStatusData(project: Project, backing: Backing) : PledgeStatusData {
-            val statusStringRes = when (project.state()) {
-                Project.STATE_CANCELED -> R.string.The_creator_canceled_this_project_so_your_payment_method_was_never_charged
-                Project.STATE_FAILED -> R.string.This_project_didnt_reach_its_funding_goal_so_your_payment_method_was_never_charged
-                else -> when (backing.status()) {
-                    Backing.STATUS_CANCELED -> R.string.You_canceled_your_pledge_for_this_project
-                    Backing.STATUS_COLLECTED -> R.string.We_collected_your_pledge_for_this_project
-                    Backing.STATUS_DROPPED -> R.string.Your_pledge_was_dropped_because_of_payment_errors
-                    Backing.STATUS_ERRORED -> R.string.We_cant_process_your_pledge_Please_update_your_payment_method
-                    Backing.STATUS_PLEDGED -> R.string.If_the_project_reaches_its_funding_goal_you_will_be_charged_total_on_project_deadline
-                    Backing.STATUS_PREAUTH -> R.string.We_re_processing_your_pledge_pull_to_refresh
-                    else -> null
+        private fun pledgeStatusData(
+            project: Project,
+            backing: Backing,
+            user: User
+        ): PledgeStatusData {
+
+            var statusStringRes: Int?
+
+            if (!project.userIsCreator(user)) {
+
+                statusStringRes = when (project.state()) {
+                    Project.STATE_CANCELED -> R.string.The_creator_canceled_this_project_so_your_payment_method_was_never_charged
+                    Project.STATE_FAILED -> R.string.This_project_didnt_reach_its_funding_goal_so_your_payment_method_was_never_charged
+                    else -> when (backing.status()) {
+                        Backing.STATUS_CANCELED -> R.string.You_canceled_your_pledge_for_this_project
+                        Backing.STATUS_COLLECTED -> R.string.We_collected_your_pledge_for_this_project
+                        Backing.STATUS_DROPPED -> R.string.Your_pledge_was_dropped_because_of_payment_errors
+                        Backing.STATUS_AUTHENTICATION_REQUIRED,
+                        Backing.STATUS_ERRORED -> {
+                            if (!backing.paymentIncrements()
+                                .isNullOrEmpty() && !project.isLive
+                            ) {
+                                R.string.We_cant_process_your_Pledge_Over_Time_payment
+                            } else {
+                                R.string.We_cant_process_your_pledge_Please_update_your_payment_method
+                            }
+                        }
+
+                        Backing.STATUS_PLEDGED -> {
+                            if (environment.featureFlagClient()
+                                ?.getBoolean(FlagKey.ANDROID_PLEDGE_OVER_TIME) == true && !backing.paymentIncrements()
+                                    .isNullOrEmpty() && project.isLive
+                            ) {
+                                R.string.You_have_selected_pledge_over_time
+                            } else if (environment.featureFlagClient()
+                                ?.getBoolean(FlagKey.ANDROID_PLEDGE_OVER_TIME) == true && !backing.paymentIncrements()
+                                    .isNullOrEmpty() && !project.isLive
+                            ) {
+                                R.string.We_collected_your_pledge_for_this_project
+                            } else {
+                                R.string.If_the_project_reaches_its_funding_goal_you_will_be_charged_total_on_project_deadline
+                            }
+                        }
+
+                        Backing.STATUS_PREAUTH -> R.string.We_re_processing_your_pledge_pull_to_refresh
+
+                        else -> null
+                    }
+                }
+            } else {
+                statusStringRes = when (project.state()) {
+                    Project.STATE_CANCELED -> R.string.You_canceled_this_project_so_the_backers_payment_method_was_never_charged
+                    Project.STATE_FAILED -> R.string.Your_project_didnt_reach_its_funding_goal_so_the_backers_payment_method_was_never_charged
+                    else -> when (backing.status()) {
+                        Backing.STATUS_CANCELED -> R.string.The_backer_canceled_their_pledge_for_this_project
+                        Backing.STATUS_COLLECTED -> R.string.We_collected_the_backers_pledge_for_this_project
+                        Backing.STATUS_DROPPED -> R.string.This_pledge_was_dropped_because_of_payment_errors
+                        Backing.STATUS_ERRORED -> R.string.We_cant_process_this_pledge_because_of_a_problem_with_the_backers_payment_method
+                        Backing.STATUS_PLEDGED -> R.string.If_your_project_reaches_its_funding_goal_the_backer_will_be_charged_total_on_project_deadline
+                        Backing.STATUS_PREAUTH -> R.string.We_re_processing_this_pledge_pull_to_refresh
+                        else -> null
+                    }
                 }
             }
-
+            val isPlot = !backing.paymentIncrements().isNullOrEmpty()
             val projectDeadline = project.deadline()?.let { DateTimeUtils.longDate(it) }
-            val pledgeTotal = backing.amount().let { this.ksCurrency.format(it, project) }
-            return PledgeStatusData(statusStringRes, pledgeTotal, projectDeadline)
+            val pledgeTotal = backing.amount()
+            val pledgeTotalString = this.ksCurrency.format(pledgeTotal, project)
+            val plotData = if (isPlot) {
+                val plotAmountString =
+                    backing.paymentIncrements()?.first()?.paymentIncrementAmount?.formattedAmount
+                // TODO: VERIFY IF WE WANT TO SHOW DECIMALS OR NOT
+                // val plotAmountString = this.ksCurrency.format(backing.paymentIncrements()?.first()?.amount?.amount.parseToDouble(), project, RoundingMode.UNNECESSARY)
+                val plotFirstScheduleCollection = backing.paymentIncrements()
+                    ?.first()?.scheduledCollection?.let { DateTimeUtils.longDate(it) }
+                val fixPledgeUrl =
+                    "${environment.webEndpoint()}/projects/${project.slug()}/backing/details"
+
+                PlotData(
+                    plotAmount = plotAmountString,
+                    plotFirstScheduleCollection = plotFirstScheduleCollection,
+                    fixPledgeUrl = fixPledgeUrl
+                )
+            } else {
+                null
+            }
+
+            return PledgeStatusData(
+                statusStringRes,
+                pledgeTotalString,
+                projectDeadline,
+                plotData
+            )
         }
 
         override fun configureWith(projectData: ProjectData) {
@@ -399,11 +678,11 @@ interface BackingFragmentViewModel {
         }
 
         override fun fixPaymentMethodButtonClicked() {
-            this.fixPaymentMethodButtonClicked.onNext(null)
+            this.fixPaymentMethodButtonClicked.onNext(Unit)
         }
 
         override fun pledgeSuccessfullyUpdated() {
-            this.showUpdatePledgeSuccess.onNext(null)
+            this.showUpdatePledgeSuccess.onNext(Unit)
         }
 
         override fun receivedCheckboxToggled(checked: Boolean) {
@@ -411,7 +690,13 @@ interface BackingFragmentViewModel {
         }
 
         override fun refreshProject() {
-            this.refreshProject.onNext(null)
+            this.refreshProject.onNext(Unit)
+        }
+
+        override fun isExpanded(state: Boolean?) {
+            state?.let {
+                this.isExpanded.onNext(it)
+            }
         }
 
         override fun backerAvatar(): Observable<String> = this.backerAvatar
@@ -428,13 +713,20 @@ interface BackingFragmentViewModel {
 
         override fun cardLogo(): Observable<Int> = this.cardLogo
 
-        override fun fixPaymentMethodButtonIsGone(): Observable<Boolean> = this.fixPaymentMethodButtonIsGone
+        override fun fixPaymentMethodButtonIsGone(): Observable<Boolean> =
+            this.fixPaymentMethodButtonIsGone
 
-        override fun fixPaymentMethodMessageIsGone(): Observable<Boolean> = this.fixPaymentMethodMessageIsGone
+        override fun fixPaymentMethodMessageIsGone(): Observable<Boolean> =
+            this.fixPaymentMethodMessageIsGone
 
-        override fun notifyDelegateToRefreshProject(): Observable<Void> = this.notifyDelegateToRefreshProject
+        override fun betaBadgeIsGone(): Observable<Boolean> =
+            this.betaBadgeIsGone
 
-        override fun notifyDelegateToShowFixPledge(): Observable<Void> = this.notifyDelegateToShowFixPledge
+        override fun notifyDelegateToRefreshProject(): Observable<Unit> =
+            this.notifyDelegateToRefreshProject
+
+        override fun notifyDelegateToShowFixPledge(): Observable<Unit> =
+            this.notifyDelegateToShowFixPledge
 
         override fun paymentMethodIsGone(): Observable<Boolean> = this.paymentMethodIsGone
 
@@ -446,11 +738,18 @@ interface BackingFragmentViewModel {
 
         override fun pledgeSummaryIsGone(): Observable<Boolean> = this.pledgeSummaryIsGone
 
-        override fun projectDataAndReward(): Observable<Pair<ProjectData, Reward>> = this.projectDataAndReward
+        override fun projectDataAndReward(): Observable<Pair<ProjectData, Reward>> =
+            this.projectDataAndReward
+
+        override fun projectDataAndAddOns(): Observable<Pair<ProjectData, List<Reward>>> =
+            this.addOnsList
 
         override fun receivedCheckboxChecked(): Observable<Boolean> = this.receivedCheckboxChecked
 
         override fun receivedSectionIsGone(): Observable<Boolean> = this.receivedSectionIsGone
+
+        override fun receivedSectionCreatorIsGone(): Observable<Boolean> =
+            this.receivedSectionCreatorIsGone
 
         override fun shippingAmount(): Observable<CharSequence> = this.shippingAmount
 
@@ -458,10 +757,35 @@ interface BackingFragmentViewModel {
 
         override fun shippingSummaryIsGone(): Observable<Boolean> = this.shippingSummaryIsGone
 
-        override fun showUpdatePledgeSuccess(): Observable<Void> = this.showUpdatePledgeSuccess
+        override fun showUpdatePledgeSuccess(): Observable<Unit> = this.showUpdatePledgeSuccess
 
-        override fun swipeRefresherProgressIsVisible(): Observable<Boolean> = this.swipeRefresherProgressIsVisible
+        override fun swipeRefresherProgressIsVisible(): Observable<Boolean> =
+            this.swipeRefresherProgressIsVisible
 
         override fun totalAmount(): Observable<CharSequence> = this.totalAmount
+
+        override fun bonusSupport(): Observable<CharSequence> = this.bonusSupport
+
+        override fun estimatedDelivery(): Observable<String> = this.estimatedDelivery
+
+        override fun deliveryDisclaimerSectionIsGone(): Observable<Boolean> =
+            this.deliveryDisclaimerSectionIsGone
+
+        override fun paymentIncrements(): Observable<List<PaymentIncrement>> =
+            this.paymentIncrements
+
+        override fun pledgeIsPlot(): Observable<Boolean> = this.pledgeIsPlot
+
+        override fun onCleared() {
+            apolloClient.cleanDisposables()
+            disposables.clear()
+            super.onCleared()
+        }
+    }
+
+    class Factory(private val environment: Environment) : ViewModelProvider.Factory {
+        override fun <T : ViewModel> create(modelClass: Class<T>): T {
+            return BackingFragmentViewModel(environment) as T
+        }
     }
 }

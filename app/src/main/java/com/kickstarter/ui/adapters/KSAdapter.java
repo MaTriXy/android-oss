@@ -4,21 +4,20 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 
-import com.crashlytics.android.Crashlytics;
-import com.kickstarter.BuildConfig;
-import com.kickstarter.libs.utils.ExceptionUtils;
-import com.kickstarter.ui.viewholders.KSViewHolder;
-import com.trello.rxlifecycle.ActivityEvent;
-
-import java.util.ArrayList;
-import java.util.List;
-
 import androidx.annotation.LayoutRes;
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
 
+import com.google.firebase.crashlytics.FirebaseCrashlytics;
+import com.kickstarter.BuildConfig;
+import com.kickstarter.libs.utils.ExceptionUtils;
+import com.kickstarter.ui.viewholders.KSViewHolder;
+
+import java.util.ArrayList;
+import java.util.List;
+
 public abstract class KSAdapter extends RecyclerView.Adapter<KSViewHolder> {
-  private List<List<Object>> sections = new ArrayList<>();
+  private final List<List<Object>> sections = new ArrayList<>();
 
   public List<List<Object>> sections() {
     return this.sections;
@@ -52,40 +51,29 @@ public abstract class KSAdapter extends RecyclerView.Adapter<KSViewHolder> {
   protected abstract int layout(final @NonNull SectionRow sectionRow);
 
   /**
-   * Returns a new KSViewHolder given a layout and view.
-   */
-  protected abstract @NonNull KSViewHolder viewHolder(final @LayoutRes int layout, final @NonNull View view);
+  * Returns a new KSViewHolder given a layout and view.
+  */
+  protected abstract @NonNull KSViewHolder viewHolder(final @LayoutRes int layout, final @NonNull ViewGroup viewGroup);
 
   @Override
   public void onViewDetachedFromWindow(final @NonNull KSViewHolder holder) {
     super.onViewDetachedFromWindow(holder);
 
-    // View holders are "stopped" when they are detached from the window for recycling
-    holder.lifecycleEvent(ActivityEvent.STOP);
-
     // View holders are "destroy" when they are detached from the window and no adapter is listening
     // to events, so ostensibly the view holder is being deallocated.
     if (!hasObservers()) {
-      holder.lifecycleEvent(ActivityEvent.DESTROY);
+      holder.destroy();
     }
   }
 
   @Override
   public void onViewAttachedToWindow(final @NonNull KSViewHolder holder) {
     super.onViewAttachedToWindow(holder);
-
-    // View holders are "started" when they are attached to the new window because this means
-    // it has been recycled.
-    holder.lifecycleEvent(ActivityEvent.START);
   }
 
   @Override
   public final @NonNull KSViewHolder onCreateViewHolder(final @NonNull ViewGroup viewGroup, final @LayoutRes int layout) {
-    final View view = inflateView(viewGroup, layout);
-    final KSViewHolder viewHolder = viewHolder(layout, view);
-
-    viewHolder.lifecycleEvent(ActivityEvent.CREATE);
-
+    final KSViewHolder viewHolder = viewHolder(layout, viewGroup);
     return viewHolder;
   }
 
@@ -101,7 +89,7 @@ public abstract class KSAdapter extends RecyclerView.Adapter<KSViewHolder> {
         ExceptionUtils.rethrowAsRuntimeException(e);
       } else {
         // TODO: alter the exception message to say we are just reporting it and it's not a real crash.
-        Crashlytics.logException(e);
+        FirebaseCrashlytics.getInstance().recordException(e);
       }
     }
   }

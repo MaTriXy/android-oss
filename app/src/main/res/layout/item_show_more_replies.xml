@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:id="@+id/pagination_error_cell"
+    android:layout_marginStart="@dimen/grid_5"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <androidx.appcompat.widget.AppCompatButton
+        android:layout_width="match_parent"
+        android:id="@+id/view_more_pagination_button"
+        style="@style/CommentsShowMoreButton"
+        android:layout_height="@dimen/grid_4"
+        android:layout_marginStart="@dimen/grid_3"
+        android:layout_marginTop="@dimen/grid_3"
+        android:text="@string/View_more_replies"
+        android:gravity="center_vertical"
+        android:visibility="gone"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        tools:visibility="visible" />
+
+    <androidx.appcompat.widget.AppCompatImageView
+        android:id="@+id/retry_icon"
+        style="@style/CommentsReplyButton"
+        android:layout_marginStart="@dimen/grid_3"
+        app:layout_constraintTop_toTopOf="@id/retry_button"
+        app:layout_constraintStart_toStartOf="parent"
+        android:src="@drawable/ic_retry_send_comment" />
+
+    <androidx.appcompat.widget.AppCompatTextView
+        android:id="@+id/retry_button"
+        style="@style/CommentsRetryButton"
+        android:layout_width="@dimen/grid_none"
+        android:gravity="start"
+        android:includeFontPadding="false"
+        android:layout_marginTop="@dimen/grid_3"
+        android:text="@string/Couldnt_load_more_comments_Tap_to_retry"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toEndOf="@id/retry_icon"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent"/>
+
+    <androidx.constraintlayout.widget.Group
+        android:id="@+id/error_pagination_retry_button_group"
+        android:layout_width="wrap_content"
+        android:visibility="gone"
+        android:layout_height="wrap_content"
+        tools:visibility="visible"
+        app:constraint_referenced_ids="retry_button,retry_icon" />
+
+</androidx.constraintlayout.widget.ConstraintLayout>

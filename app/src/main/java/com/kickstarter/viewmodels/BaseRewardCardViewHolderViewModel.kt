@@ -1,20 +1,22 @@
 package com.kickstarter.viewmodels
 
 import android.util.Pair
-import com.kickstarter.libs.ActivityViewModel
-import com.kickstarter.libs.Environment
 import com.kickstarter.libs.rx.transformers.Transformers.combineLatestPair
-import com.kickstarter.libs.utils.BackingUtils
+import com.kickstarter.libs.utils.extensions.addToDisposable
+import com.kickstarter.libs.utils.extensions.isErrored
+import com.kickstarter.libs.utils.extensions.isNotNull
+import com.kickstarter.libs.utils.extensions.isNull
 import com.kickstarter.models.Backing
 import com.kickstarter.models.Project
 import com.kickstarter.models.StoredCard
-import com.kickstarter.ui.viewholders.KSViewHolder
+import com.kickstarter.models.extensions.getCardTypeDrawable
 import com.stripe.android.model.Card
-import rx.Observable
-import rx.subjects.BehaviorSubject
-import rx.subjects.PublishSubject
+import io.reactivex.Observable
+import io.reactivex.disposables.CompositeDisposable
+import io.reactivex.subjects.BehaviorSubject
+import io.reactivex.subjects.PublishSubject
 import java.text.SimpleDateFormat
-import java.util.*
+import java.util.Locale
 
 interface BaseRewardCardViewHolderViewModel {
     interface Inputs {
@@ -25,6 +27,9 @@ interface BaseRewardCardViewHolderViewModel {
     interface Outputs {
         /** Emits the expiration date for a credit card. */
         fun expirationDate(): Observable<String>
+
+        /** Emits when the expiration date label should be gone. */
+        fun expirationIsGone(): Observable<Boolean>
 
         /** Emits the name of the card issuer from [Card.CardBrand]. */
         fun issuer(): Observable<String>
@@ -39,7 +44,7 @@ interface BaseRewardCardViewHolderViewModel {
         fun retryCopyIsVisible(): Observable<Boolean>
     }
 
-    abstract class ViewModel(val environment: Environment) : ActivityViewModel<KSViewHolder>(environment), Inputs, Outputs {
+    open class ViewModel : Inputs, Outputs {
         protected val cardAndProject: PublishSubject<Pair<StoredCard, Project>> = PublishSubject.create()
 
         private val expirationDate = BehaviorSubject.create<String>()
@@ -47,48 +52,68 @@ interface BaseRewardCardViewHolderViewModel {
         private val issuerImage = BehaviorSubject.create<Int>()
         private val lastFour = BehaviorSubject.create<String>()
         private val retryCopyIsVisible = PublishSubject.create<Boolean>()
+        private val expirationIsGone = PublishSubject.create<Boolean>()
 
         private val sdf = SimpleDateFormat(StoredCard.DATE_FORMAT, Locale.getDefault())
+
+        val disposables = CompositeDisposable()
 
         init {
 
             val card = cardAndProject
-                    .map { it.first }
+                .filter { it.first.isNotNull() }
+                .map { it.first }
 
             card
-                    .map { it.expiration() }
-                    .map { sdf.format(it).toString() }
-                    .subscribe(this.expirationDate)
+                .filter { it.expiration().isNotNull() }
+                .map { it.expiration() }
+                .map { sdf.format(it).toString() }
+                .subscribe { this.expirationDate.onNext(it) }
+                .addToDisposable(disposables)
 
             card
-                    .map { it.lastFourDigits() }
-                    .subscribe(this.lastFour)
+                .map { it.expiration().isNull() }
+                .subscribe { this.expirationIsGone.onNext(it) }
+                .addToDisposable(disposables)
 
             card
-                    .map { it.type() }
-                    .map { StoredCard.getCardTypeDrawable(it) }
-                    .subscribe(this.issuerImage)
+                .filter { it.lastFourDigits().isNotNull() }
+                .map { requireNotNull(it.lastFourDigits()) }
+                .subscribe { this.lastFour.onNext(it) }
+                .addToDisposable(disposables)
 
             card
-                    .map { it.type() }
-                    .map { StoredCard.issuer(it) }
-                    .subscribe(this.issuer)
+                .filter { it.isNotNull() }
+                .map { it.getCardTypeDrawable() }
+                .subscribe { this.issuerImage.onNext(it) }
+                .addToDisposable(disposables)
+
+            card
+                .filter { it.type().isNotNull() }
+                .map { it.type() }
+                .map { StoredCard.issuer(it) }
+                .subscribe { this.issuer.onNext(it) }
+                .addToDisposable(disposables)
 
             val project = this.cardAndProject
-                    .map { it.second }
+                .filter { it.second.isNotNull() }
+                .map { it.second }
 
             val backing = project
-                    .map { it.backing() }
+                .filter { it.backing().isNotNull() }
+                .map { it.backing() }
 
             val isBackingPaymentSource = backing
-                    .compose<Pair<Backing?, StoredCard>>(combineLatestPair(card))
-                    .map { backingAndCard -> backingAndCard.first?.let { b -> b.paymentSource()?.let { it.id() == backingAndCard.second.id() } }?: false }
+                .compose<Pair<Backing?, StoredCard>>(combineLatestPair(card))
+                .map { backingAndCard -> backingAndCard.first?.let { b -> b.paymentSource()?.let { it.id() == backingAndCard.second.id() } } ?: false }
 
             isBackingPaymentSource
-                    .compose<Pair<Boolean, Backing?>>(combineLatestPair(backing))
-                    .map { it.first && BackingUtils.isErrored(it.second) }
-                    .subscribe(this.retryCopyIsVisible)
-
+                .compose<Pair<Boolean, Backing?>>(combineLatestPair(backing))
+                .map {
+                    it.first && it.second?.isErrored() ?: false
+                }
+                .subscribe { this.retryCopyIsVisible.onNext(it) }
+                .addToDisposable(disposables)
         }
         override fun configureWith(cardAndProject: Pair<StoredCard, Project>) = this.cardAndProject.onNext(cardAndProject)
 
@@ -101,5 +126,11 @@ interface BaseRewardCardViewHolderViewModel {
         override fun lastFour(): Observable<String> = this.lastFour
 
         override fun retryCopyIsVisible(): Observable<Boolean> = this.retryCopyIsVisible
+
+        override fun expirationIsGone(): Observable<Boolean> = this.expirationIsGone
+
+        fun onCleared() {
+            disposables.clear()
+        }
     }
 }

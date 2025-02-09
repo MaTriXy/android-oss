@@ -1,97 +1,155 @@
 package com.kickstarter.ui.activities
 
 import android.content.Intent
+import android.content.SharedPreferences
 import android.os.Bundle
 import android.view.View
+import android.widget.AdapterView
+import android.widget.ArrayAdapter
+import androidx.activity.viewModels
 import androidx.appcompat.app.AlertDialog
+import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.widget.AppCompatSpinner
+import androidx.core.view.isGone
 import com.kickstarter.BuildConfig
 import com.kickstarter.R
-import com.kickstarter.libs.*
-import com.kickstarter.libs.qualifiers.RequiresActivityViewModel
-import com.kickstarter.libs.rx.transformers.Transformers
-import com.kickstarter.libs.transformations.CircleTransformation
+import com.kickstarter.databinding.SettingsLayoutBinding
+import com.kickstarter.libs.Build
+import com.kickstarter.libs.KSString
+import com.kickstarter.libs.Logout
+import com.kickstarter.libs.featureflag.FlagKey
 import com.kickstarter.libs.utils.ApplicationUtils
 import com.kickstarter.libs.utils.ViewUtils
+import com.kickstarter.libs.utils.extensions.addToDisposable
+import com.kickstarter.libs.utils.extensions.getEnvironment
+import com.kickstarter.ui.SharedPreferenceKey
+import com.kickstarter.ui.extensions.loadCircleImage
+import com.kickstarter.ui.extensions.setUpConnectivityStatusCheck
+import com.kickstarter.utils.WindowInsetsUtil
 import com.kickstarter.viewmodels.SettingsViewModel
-import com.squareup.picasso.Picasso
-import kotlinx.android.synthetic.main.settings_layout.*
-import rx.android.schedulers.AndroidSchedulers
+import io.reactivex.android.schedulers.AndroidSchedulers
+import io.reactivex.disposables.CompositeDisposable
 
-@RequiresActivityViewModel(SettingsViewModel.ViewModel::class)
-class SettingsActivity : BaseActivity<SettingsViewModel.ViewModel>() {
+class SettingsActivity : AppCompatActivity() {
     private lateinit var build: Build
-    private lateinit var currentUser: CurrentUserType
     private lateinit var ksString: KSString
     private lateinit var logout: Logout
     private var logoutConfirmationDialog: AlertDialog? = null
+    private lateinit var binding: SettingsLayoutBinding
+    private lateinit var disposables: CompositeDisposable
+    private lateinit var spinner: AppCompatSpinner
+    private var sharedPrefs: SharedPreferences? = null
+    private var darkModeEnabled = false
+
+    private lateinit var themeItems: Array<String>
+
+    private lateinit var viewModelFactory: SettingsViewModel.Factory
+    private val viewModel: SettingsViewModel.SettingsViewModel by viewModels {
+        viewModelFactory
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.settings_layout)
+        themeItems = arrayOf(
+            getString(R.string.match_system),
+            getString(R.string.light),
+            getString(R.string.dark)
+        )
+        binding = SettingsLayoutBinding.inflate(layoutInflater)
+        WindowInsetsUtil.manageEdgeToEdge(
+            window,
+            binding.root,
+        )
+        this.getEnvironment()?.let { env ->
+            viewModelFactory = SettingsViewModel.Factory(env)
+            sharedPrefs = env.sharedPreferences()
+            darkModeEnabled =
+                env.featureFlagClient()?.getBoolean(FlagKey.ANDROID_DARK_MODE_ENABLED) ?: false
+        }
+        disposables = CompositeDisposable()
 
-        if (BuildConfig.DEBUG) {
-            edit_profile_row.visibility = View.VISIBLE
+        setContentView(binding.root)
+
+        spinner = binding.appThemeSpinner
+        if (darkModeEnabled) {
+            binding.appThemeContainer.visibility = View.VISIBLE
+            setUpThemeSpinner()
         }
 
-        this.build = environment().build()
-        this.currentUser = environment().currentUser()
-        this.ksString = environment().ksString()
-        this.logout = environment().logout()
+        setUpConnectivityStatusCheck(lifecycle)
 
-        version_name_text_view.text = ksString.format(getString(R.string.profile_settings_version_number),
-                "version_number", this.build.versionName())
+        this.build = requireNotNull(getEnvironment()?.build())
+        this.ksString = requireNotNull(getEnvironment()?.ksString())
+        this.logout = requireNotNull(getEnvironment()?.logout())
+
+        binding.versionNameTextView.text = ksString.format(
+            getString(R.string.profile_settings_version_number),
+            "version_number", this.build.versionName()
+        )
 
         this.viewModel.outputs.avatarImageViewUrl()
-                .compose(bindToLifecycle())
-                .compose(Transformers.observeForUI())
-                .subscribe { url -> Picasso.with(this).load(url).transform(CircleTransformation()).into(profile_picture_image_view) }
+            .observeOn(AndroidSchedulers.mainThread())
+            .subscribe { url ->
+                binding.profilePictureImageView.loadCircleImage(url)
+            }
+            .addToDisposable(disposables)
 
         this.viewModel.outputs.logout()
-                .compose(bindToLifecycle())
-                .observeOn(AndroidSchedulers.mainThread())
-                .subscribe { logout() }
+            .observeOn(AndroidSchedulers.mainThread())
+            .subscribe { logout() }
+            .addToDisposable(disposables)
 
         this.viewModel.outputs.showConfirmLogoutPrompt()
-                .compose(bindToLifecycle())
-                .observeOn(AndroidSchedulers.mainThread())
-                .subscribe { show ->
-                    if (show) {
-                        lazyLogoutConfirmationDialog().show()
-                    } else {
-                        lazyLogoutConfirmationDialog().dismiss()
-                    }
+            .observeOn(AndroidSchedulers.mainThread())
+            .subscribe { show ->
+                if (show) {
+                    lazyLogoutConfirmationDialog().show()
+                } else {
+                    lazyLogoutConfirmationDialog().dismiss()
                 }
+            }
+            .addToDisposable(disposables)
 
         this.viewModel.outputs.userNameTextViewText()
-                .compose(bindToLifecycle())
-                .compose(Transformers.observeForUI())
-                .subscribe { name_text_view.text = it }
+            .observeOn(AndroidSchedulers.mainThread())
+            .subscribe { binding.nameTextView.text = it }
+            .addToDisposable(disposables)
 
-        account_row.setOnClickListener {
+        this.viewModel.isUserPresent
+            .observeOn(AndroidSchedulers.mainThread())
+            .subscribe { isPresent ->
+                binding.editProfileRow.isGone = !BuildConfig.DEBUG || !isPresent
+                binding.accountRow.isGone = !isPresent
+                binding.notificationAndNewsletterContainer.isGone = !isPresent
+                binding.logOutRow.isGone = !isPresent
+            }
+            .addToDisposable(disposables)
+
+        binding.accountRow.setOnClickListener {
             startActivity(Intent(this, AccountActivity::class.java))
         }
 
-        edit_profile_row.setOnClickListener {
+        binding.editProfileRow.setOnClickListener {
             startActivity(Intent(this, EditProfileActivity::class.java))
         }
 
-        help_row.setOnClickListener {
+        binding.helpRow.setOnClickListener {
             startActivity(Intent(this, HelpSettingsActivity::class.java))
         }
 
-        log_out_row.setOnClickListener {
+        binding.logOutRow.setOnClickListener {
             this.viewModel.inputs.logoutClicked()
         }
 
-        newsletters_row.setOnClickListener {
+        binding.newslettersRow.setOnClickListener {
             startActivity(Intent(this, NewsletterActivity::class.java))
         }
 
-        notification_row.setOnClickListener {
+        binding.notificationRow.setOnClickListener {
             startActivity(Intent(this, NotificationsActivity::class.java))
         }
 
-        rate_us_row.setOnClickListener { ViewUtils.openStoreRating(this, this.packageName) }
+        binding.rateUsRow.setOnClickListener { ViewUtils.openStoreRating(this, this.packageName) }
     }
 
     private fun logout() {
@@ -105,13 +163,43 @@ class SettingsActivity : BaseActivity<SettingsViewModel.ViewModel>() {
     private fun lazyLogoutConfirmationDialog(): AlertDialog {
         if (this.logoutConfirmationDialog == null) {
             this.logoutConfirmationDialog = AlertDialog.Builder(this)
-                    .setTitle(getString(R.string.profile_settings_logout_alert_title))
-                    .setMessage(getString(R.string.profile_settings_logout_alert_message))
-                    .setPositiveButton(getString(R.string.profile_settings_logout_alert_confirm_button)) { _, _ -> this.viewModel.inputs.confirmLogoutClicked() }
-                    .setNegativeButton(getString(R.string.profile_settings_logout_alert_cancel_button)) { _, _ -> this.viewModel.inputs.closeLogoutConfirmationClicked() }
-                    .setOnCancelListener { this.viewModel.inputs.closeLogoutConfirmationClicked() }
-                    .create()
+                .setTitle(getString(R.string.profile_settings_logout_alert_title))
+                .setMessage(getString(R.string.profile_settings_logout_alert_message))
+                .setPositiveButton(getString(R.string.profile_settings_logout_alert_confirm_button)) { _, _ -> this.viewModel.inputs.confirmLogoutClicked() }
+                .setNegativeButton(getString(R.string.profile_settings_logout_alert_cancel_button)) { _, _ -> this.viewModel.inputs.closeLogoutConfirmationClicked() }
+                .setOnCancelListener { this.viewModel.inputs.closeLogoutConfirmationClicked() }
+                .create()
         }
         return this.logoutConfirmationDialog!!
     }
+
+    override fun onDestroy() {
+        disposables.clear()
+        super.onDestroy()
+    }
+
+    private fun setUpThemeSpinner() {
+        val adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, themeItems)
+        spinner.adapter = adapter
+
+        val currentSelection =
+            sharedPrefs?.getInt(SharedPreferenceKey.APP_THEME, AppThemes.MATCH_SYSTEM.ordinal)
+                ?: AppThemes.MATCH_SYSTEM.ordinal
+        spinner.setSelection(currentSelection)
+
+        spinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(p0: AdapterView<*>?, p1: View?, p2: Int, p3: Long) {
+                sharedPrefs?.edit()?.putInt(SharedPreferenceKey.APP_THEME, p2)?.apply()
+            }
+
+            override fun onNothingSelected(p0: AdapterView<*>?) {
+            }
+        }
+    }
+}
+
+enum class AppThemes {
+    MATCH_SYSTEM,
+    LIGHT,
+    DARK
 }

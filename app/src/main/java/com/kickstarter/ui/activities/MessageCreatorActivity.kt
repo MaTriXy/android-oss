@@ -2,65 +2,119 @@ package com.kickstarter.ui.activities
 
 import android.content.Intent
 import android.os.Bundle
+import android.view.ViewGroup
+import androidx.activity.addCallback
+import androidx.activity.viewModels
+import androidx.appcompat.app.AppCompatActivity
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.isGone
+import androidx.core.view.updateLayoutParams
+import androidx.core.view.updatePadding
 import com.kickstarter.R
-import com.kickstarter.extensions.onChange
-import com.kickstarter.extensions.showSnackbar
-import com.kickstarter.libs.BaseActivity
+import com.kickstarter.databinding.ActivityMessageCreatorBinding
 import com.kickstarter.libs.KSString
-import com.kickstarter.libs.KoalaContext
-import com.kickstarter.libs.qualifiers.RequiresActivityViewModel
-import com.kickstarter.libs.rx.transformers.Transformers.observeForUI
+import com.kickstarter.libs.MessagePreviousScreenType
 import com.kickstarter.libs.utils.ViewUtils
+import com.kickstarter.libs.utils.extensions.addToDisposable
+import com.kickstarter.libs.utils.extensions.getEnvironment
 import com.kickstarter.models.MessageThread
 import com.kickstarter.ui.IntentKey
-import com.kickstarter.viewmodels.MessageCreatorViewModel
-import kotlinx.android.synthetic.main.activity_message_creator.*
+import com.kickstarter.ui.extensions.finishWithAnimation
+import com.kickstarter.ui.extensions.onChange
+import com.kickstarter.ui.extensions.setUpConnectivityStatusCheck
+import com.kickstarter.ui.extensions.showSnackbar
+import com.kickstarter.viewmodels.MessageCreatorViewModel.Factory
+import com.kickstarter.viewmodels.MessageCreatorViewModel.MessageCreatorViewModel
+import io.reactivex.android.schedulers.AndroidSchedulers
+import io.reactivex.disposables.CompositeDisposable
 
-@RequiresActivityViewModel(MessageCreatorViewModel.ViewModel::class)
-class MessageCreatorActivity : BaseActivity<MessageCreatorViewModel.ViewModel>() {
+class MessageCreatorActivity : AppCompatActivity() {
     private lateinit var ksString: KSString
+    private lateinit var binding: ActivityMessageCreatorBinding
 
+    private lateinit var viewModelFactory: Factory
+    private val viewModel: MessageCreatorViewModel by viewModels { viewModelFactory }
+
+    private var disposables = CompositeDisposable()
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_message_creator)
+        WindowCompat.setDecorFitsSystemWindows(window, false)
 
-        this.ksString = this.environment().ksString()
+        binding = ActivityMessageCreatorBinding.inflate(layoutInflater)
+        setContentView(binding.root)
+
+        ViewCompat.setOnApplyWindowInsetsListener(binding.root) { v, windowInsets ->
+            val insets = windowInsets.getInsets(WindowInsetsCompat.Type.systemBars())
+            v.updateLayoutParams<ViewGroup.MarginLayoutParams> {
+                leftMargin = insets.left
+                bottomMargin = insets.bottom
+                rightMargin = insets.right
+                topMargin = insets.top
+            }
+
+            val imeInsets = windowInsets.getInsets(WindowInsetsCompat.Type.ime())
+            v.updatePadding(bottom = imeInsets.bottom)
+
+            WindowInsetsCompat.CONSUMED
+        }
+
+        setUpConnectivityStatusCheck(lifecycle)
+
+        val environment = this.getEnvironment()?.let { env ->
+            viewModelFactory = Factory(env, intent = intent)
+            env
+        }
+
+        this.ksString = requireNotNull(environment?.ksString())
 
         this.viewModel.outputs.showSentError()
-                .compose(bindToLifecycle())
-                .compose(observeForUI())
-                .subscribe { showSnackbar(message_body, it) }
+            .observeOn(AndroidSchedulers.mainThread())
+            .subscribe { showSnackbar(binding.messageBody, it) }
+            .addToDisposable(disposables)
 
         this.viewModel.outputs.showSentSuccess()
-                .compose(bindToLifecycle())
-                .compose(observeForUI())
-                .subscribe { finishAndShowSuccessToast(it) }
+            .observeOn(AndroidSchedulers.mainThread())
+            .subscribe { finishAndShowSuccessToast(it) }
+            .addToDisposable(disposables)
 
         this.viewModel.outputs.creatorName()
-                .compose(bindToLifecycle())
-                .compose(observeForUI())
-                .subscribe { setHint(it) }
+            .observeOn(AndroidSchedulers.mainThread())
+            .subscribe { setHint(it) }
+            .addToDisposable(disposables)
 
         this.viewModel.outputs.progressBarIsVisible()
-                .compose(bindToLifecycle())
-                .compose(observeForUI())
-                .subscribe { ViewUtils.setGone(progress_bar, !it) }
+            .observeOn(AndroidSchedulers.mainThread())
+            .subscribe {
+                binding.progressBar.isGone = !it
+            }
+            .addToDisposable(disposables)
 
         this.viewModel.outputs.sendButtonIsEnabled()
-                .compose(bindToLifecycle())
-                .compose(observeForUI())
-                .subscribe { send_message_button.isEnabled = it }
+            .observeOn(AndroidSchedulers.mainThread())
+            .subscribe { binding.sendMessageButton.isEnabled = it }
+            .addToDisposable(disposables)
 
         this.viewModel.outputs.showMessageThread()
-                .compose(bindToLifecycle())
-                .compose(observeForUI())
-                .subscribe { finishAndStartMessagesActivity(it) }
+            .observeOn(AndroidSchedulers.mainThread())
+            .subscribe { finishAndStartMessagesActivity(it) }
+            .addToDisposable(disposables)
 
-        message_body.onChange { this.viewModel.inputs.messageBodyChanged(it)}
+        binding.messageBody.onChange { this.viewModel.inputs.messageBodyChanged(it) }
 
-        send_message_button.setOnClickListener {
+        binding.sendMessageButton.setOnClickListener {
             this.viewModel.inputs.sendButtonClicked()
         }
+
+        this.onBackPressedDispatcher.addCallback {
+            finishWithAnimation()
+        }
+    }
+
+    override fun onDestroy() {
+        disposables.clear()
+        super.onDestroy()
     }
 
     private fun finishAndShowSuccessToast(successStringRes: Int) {
@@ -70,12 +124,14 @@ class MessageCreatorActivity : BaseActivity<MessageCreatorViewModel.ViewModel>()
 
     private fun finishAndStartMessagesActivity(messageThread: MessageThread) {
         finish()
-        startActivity(Intent(this, MessagesActivity::class.java)
+        startActivity(
+            Intent(this, MessagesActivity::class.java)
                 .putExtra(IntentKey.MESSAGE_THREAD, messageThread)
-                .putExtra(IntentKey.KOALA_CONTEXT, KoalaContext.Message.CREATOR_BIO_MODAL))
+                .putExtra(IntentKey.MESSAGE_SCREEN_SOURCE_CONTEXT, MessagePreviousScreenType.CREATOR_BIO_MODAL)
+        )
     }
 
     private fun setHint(hint: String) {
-        message_body_til.hint = this.ksString.format(getString(R.string.Message_user_name), "user_name", hint)
+        binding.messageBodyTil.hint = this.ksString.format(getString(R.string.Message_user_name), "user_name", hint)
     }
 }
