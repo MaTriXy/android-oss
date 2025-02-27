@@ -57,6 +57,7 @@ fragment fullProject on Project {
     backersCount
     description
     minPledge
+    pledgeOverTimeMinimumExplanation
     isLaunched
     isPledgeOverTimeAllowed
     sendMetaCapiEvents
@@ -183,6 +184,7 @@ fragment backing on Backing {
         items {
             ... rewardItems
         }
+        ...rewardImage
     }
     backer {
         ... user
@@ -193,6 +195,7 @@ fragment backing on Backing {
             items {
                 ... rewardItems
             }
+            ...rewardImage
         }
     }
 }

@@ -336,7 +336,7 @@ fun projectTransformer(projectFragment: FullProject?): Project {
     val tags = mutableListOf<String>()
     projectFragment?.tagsCreative?.tags?.map { tags.add(it?.id ?: "") }
     projectFragment?.tagsDiscovery?.tags?.map { tags.add(it?.id ?: "") }
-
+    val pledgeOverTimeMinimumExplanation = projectFragment?.pledgeOverTimeMinimumExplanation
     val minPledge = projectFragment?.minPledge?.toDouble() ?: 1.0
     val rewards =
         projectFragment?.rewards?.nodes?.map {
@@ -449,6 +449,7 @@ fun projectTransformer(projectFragment: FullProject?): Project {
         .watchesCount(watchesCount)
         .isInPostCampaignPledgingPhase(isInPostCampaignPledgingPhase)
         .postCampaignPledgingEnabled(postCampaignPledgingEnabled)
+        .pledgeOverTimeMinimumExplanation(pledgeOverTimeMinimumExplanation)
         .build()
 }
 
@@ -757,11 +758,13 @@ fun backingTransformer(backingGr: com.kickstarter.fragment.Backing?): Backing {
     val projectId = decodeRelayId(backingGr?.project?.project?.id) ?: -1
     val shippingAmount = backingGr?.shippingAmount
     val items = backingGr?.reward?.items
+    val rewardImage = backingGr?.reward?.rewardImage
     val reward = backingGr?.reward?.reward?.let { reward ->
         return@let rewardTransformer(
             reward,
             allowedAddons = reward.allowedAddons.isNotNull(),
-            rewardItems = complexRewardItemsTransformer(items?.rewardItems)
+            rewardItems = complexRewardItemsTransformer(items?.rewardItems),
+            rewardImage = rewardImage
         )
     }
 
@@ -788,6 +791,7 @@ fun backingTransformer(backingGr: com.kickstarter.fragment.Backing?): Backing {
             .amountAsFloat(it.paymentIncrement.amount.paymentIncrementAmount.amountAsFloat)
             .formattedAmount(it.paymentIncrement.amount.paymentIncrementAmount.amountFormattedInProjectNativeCurrency)
             .formattedAmountWithCode(it.paymentIncrement.amount.paymentIncrementAmount.amountFormattedInProjectNativeCurrencyWithCurrencyCode)
+            .amountFormattedInProjectNativeCurrency(it.paymentIncrement.amount.paymentIncrementAmount.amountFormattedInProjectNativeCurrency)
             .currencyCode(it.paymentIncrement.amount.paymentIncrementAmount.currency)
             .build()
         val scheduleCollection = it.paymentIncrement.scheduledCollection
@@ -832,7 +836,7 @@ fun backingTransformer(backingGr: com.kickstarter.fragment.Backing?): Backing {
  */
 fun getAddOnsList(addOns: com.kickstarter.fragment.Backing.AddOns): List<Reward> {
     val rewardsList = addOns.nodes?.mapNotNull { node ->
-        node?.let { rewardTransformer(it.reward) }
+        node?.let { rewardTransformer(it.reward, rewardImage = it.rewardImage) }
     }
 
     val mapHolder = mutableMapOf<Long, Reward>()
@@ -1051,6 +1055,7 @@ fun paymentPlanTransformer(buildPaymentPlanResponse: BuildPaymentPlanQuery.Payme
                 .amountAsCents(it.amount.paymentIncrementAmount.amountAsCents)
                 .formattedAmount(it.amount.paymentIncrementAmount.amountFormattedInProjectNativeCurrency)
                 .formattedAmountWithCode(it.amount.paymentIncrementAmount.amountFormattedInProjectNativeCurrencyWithCurrencyCode)
+                .amountFormattedInProjectNativeCurrency(it.amount.paymentIncrementAmount.amountFormattedInProjectNativeCurrency)
                 .currencyCode(it.amount.paymentIncrementAmount.currency)
                 .build()
 

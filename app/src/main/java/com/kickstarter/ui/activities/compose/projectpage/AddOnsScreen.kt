@@ -1,5 +1,6 @@
 package com.kickstarter.ui.activities.compose.projectpage
 
+import android.content.Context
 import android.content.res.Configuration
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -26,6 +27,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
+import coil.Coil
+import coil.request.ImageRequest
 import com.kickstarter.R
 import com.kickstarter.libs.Environment
 import com.kickstarter.libs.getCurrencySymbols
@@ -40,7 +43,7 @@ import com.kickstarter.ui.compose.designsystem.KSPrimaryGreenButton
 import com.kickstarter.ui.compose.designsystem.KSTheme
 import com.kickstarter.ui.compose.designsystem.KSTheme.colors
 import com.kickstarter.ui.compose.designsystem.KSTheme.dimensions
-import com.kickstarter.ui.compose.designsystem.KSTheme.typography
+import com.kickstarter.ui.compose.designsystem.KSTheme.typographyV2
 import com.kickstarter.ui.views.compose.checkout.BonusSupportContainer
 import java.math.RoundingMode
 
@@ -113,6 +116,8 @@ fun AddOnsScreen(
         ).toString()
     } ?: ""
 
+    preloadImages(context, addOns)
+
     Box(
         modifier = Modifier.fillMaxSize(),
         contentAlignment = Alignment.Center
@@ -140,7 +145,7 @@ fun AddOnsScreen(
                                 Row(modifier = Modifier.fillMaxWidth()) {
                                     Text(
                                         text = stringResource(id = R.string.Total_amount),
-                                        style = typography.subheadlineMedium,
+                                        style = typographyV2.subHeadlineMedium,
                                         color = colors.textPrimary
                                     )
 
@@ -148,7 +153,7 @@ fun AddOnsScreen(
 
                                     Text(
                                         text = totalAmountString,
-                                        style = typography.subheadlineMedium,
+                                        style = typographyV2.subHeadlineMedium,
                                         color = colors.textPrimary
                                     )
                                 }
@@ -203,7 +208,7 @@ fun AddOnsScreen(
                     if (addOns.isNotEmpty()) {
                         Text(
                             text = stringResource(id = R.string.Customize_your_reward_with_optional_addons),
-                            style = typography.title3Bold,
+                            style = typographyV2.headingXL,
                             color = colors.textPrimary
                         )
                     }
@@ -239,6 +244,7 @@ fun AddOnsScreen(
 
                     AddOnsContainer(
                         rewardId = reward.id(),
+                        image = reward.image(),
                         title = reward.title() ?: "",
                         amount = environment.ksCurrency()?.format(
                             reward.minimum(),
@@ -318,6 +324,19 @@ fun AddOnsScreen(
             contentAlignment = Alignment.Center
         ) {
             KSCircularProgressIndicator()
+        }
+    }
+}
+
+private fun preloadImages(context: Context, rewards: List<Reward>) {
+    val rewardsIterator = rewards.iterator()
+    while (rewardsIterator.hasNext()) {
+        val reward = rewardsIterator.next()
+        reward.image()?.let {
+            val request = ImageRequest.Builder(context)
+                .data(reward.image()?.full())
+                .build()
+            Coil.imageLoader(context).enqueue(request)
         }
     }
 }

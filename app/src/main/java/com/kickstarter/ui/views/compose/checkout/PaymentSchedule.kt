@@ -45,7 +45,7 @@ import com.kickstarter.ui.compose.designsystem.KSClickableText
 import com.kickstarter.ui.compose.designsystem.KSTheme
 import com.kickstarter.ui.compose.designsystem.KSTheme.colors
 import com.kickstarter.ui.compose.designsystem.KSTheme.dimensions
-import com.kickstarter.ui.compose.designsystem.KSTheme.typography
+import com.kickstarter.ui.compose.designsystem.KSTheme.typographyV2
 
 enum class PaymentScheduleTestTags {
     PAYMENT_SCHEDULE_TITLE,
@@ -149,7 +149,7 @@ fun PaymentSchedule(
             Text(
                 modifier = Modifier.testTag(PaymentScheduleTestTags.PAYMENT_SCHEDULE_TITLE.name),
                 text = stringResource(id = R.string.Payment_schedule),
-                style = typography.body2Medium,
+                style = typographyV2.bodyBoldMD,
                 color = colors.textPrimary
             )
             Icon(
@@ -200,15 +200,15 @@ fun PaymentRow(
             Text(
                 modifier = Modifier.testTag(PaymentScheduleTestTags.DATE_TEXT.name),
                 text = DateTimeUtils.mediumDate(paymentIncrement.scheduledCollection),
-                style = typography.body2Medium,
+                style = typographyV2.bodyBoldMD,
                 color = colors.textPrimary
             )
             paymentIncrement.stateReason?.let { StatusBadge(paymentIncrement.state, it) }
         }
         Text(
             modifier = Modifier.testTag(PaymentScheduleTestTags.AMOUNT_TEXT.name),
-            text = paymentIncrementStyledCurrency(paymentIncrement, ksCurrency),
-            style = typography.title3,
+            text = paymentIncrement.amount().amountFormattedInProjectNativeCurrency ?: "",
+            style = typographyV2.bodyXL,
             color = colors.textPrimary
         )
     }
@@ -232,7 +232,7 @@ private fun paymentIncrementStyledCurrency(
                 // Append "USD $" with smaller size and top alignment
                 withStyle(
                     style = SpanStyle(
-                        fontSize = typography.title3.fontSize * 0.6f, // Relative to typography style
+                        fontSize = typographyV2.bodyXL.fontSize * 0.6f, // Relative to typography style
                         baselineShift = BaselineShift(0.25f) // Align on top
                     )
                 ) {
@@ -242,7 +242,7 @@ private fun paymentIncrementStyledCurrency(
                 // Append ".75" with smaller size and top alignment
                 withStyle(
                     style = SpanStyle(
-                        fontSize = typography.title3.fontSize * 0.6f, // Relative to typography style
+                        fontSize = typographyV2.bodyXL.fontSize * 0.6f, // Relative to typography style
                         baselineShift = BaselineShift(0.25f) // Align on top
                     )
                 ) {
@@ -280,7 +280,7 @@ fun StatusBadge(state: PaymentIncrementState, stateReason: PaymentIncrementState
                     Text(
                         modifier = Modifier.testTag(PaymentScheduleTestTags.BADGE_TEXT.name),
                         text = stringResource(id = R.string.Authentication_required),
-                        style = typography.caption1Medium,
+                        style = typographyV2.headingSM,
                         color = colors.kds_support_400
                     )
                 }
@@ -304,7 +304,7 @@ fun StatusBadge(state: PaymentIncrementState, stateReason: PaymentIncrementState
                     Text(
                         modifier = Modifier.testTag(PaymentScheduleTestTags.BADGE_TEXT.name),
                         text = stringResource(id = R.string.Errored_payment),
-                        style = typography.caption1Medium,
+                        style = typographyV2.headingSM,
                         color = colors.textAccentRedBold
                     )
                 }
@@ -331,7 +331,7 @@ fun StatusBadge(state: PaymentIncrementState, stateReason: PaymentIncrementState
                 Text(
                     modifier = Modifier.testTag(PaymentScheduleTestTags.BADGE_TEXT.name),
                     text = stringResource(id = R.string.project_view_pledge_status_collected),
-                    style = typography.caption1Medium,
+                    style = typographyV2.headingSM,
                     color = colors.textAccentGreen
                 )
             }
@@ -357,7 +357,7 @@ fun StatusBadge(state: PaymentIncrementState, stateReason: PaymentIncrementState
                 Text(
                     modifier = Modifier.testTag(PaymentScheduleTestTags.BADGE_TEXT.name),
                     text = stringResource(id = R.string.Scheduled),
-                    style = typography.caption1Medium,
+                    style = typographyV2.headingSM,
                     color = colors.kds_support_400
                 )
             }
@@ -383,7 +383,7 @@ fun StatusBadge(state: PaymentIncrementState, stateReason: PaymentIncrementState
                 Text(
                     modifier = Modifier.testTag(PaymentScheduleTestTags.BADGE_TEXT.name),
                     text = stringResource(id = R.string.project_view_pledge_status_canceled),
-                    style = typography.caption1Medium,
+                    style = typographyV2.headingSM,
                     color = colors.kds_support_400
                 )
             }

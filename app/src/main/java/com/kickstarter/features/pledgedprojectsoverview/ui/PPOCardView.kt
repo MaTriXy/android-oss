@@ -6,6 +6,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -15,7 +16,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.Badge
@@ -23,6 +23,7 @@ import androidx.compose.material.BadgedBox
 import androidx.compose.material.Card
 import androidx.compose.material.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.ColorFilter
@@ -43,13 +44,12 @@ import com.kickstarter.features.pledgedprojectsoverview.data.Flag
 import com.kickstarter.libs.utils.extensions.format
 import com.kickstarter.ui.compose.designsystem.KSAlertBadge
 import com.kickstarter.ui.compose.designsystem.KSDividerLineGrey
-import com.kickstarter.ui.compose.designsystem.KSPrimaryBlackButton
 import com.kickstarter.ui.compose.designsystem.KSPrimaryGreenButton
 import com.kickstarter.ui.compose.designsystem.KSSecondaryRedButton
 import com.kickstarter.ui.compose.designsystem.KSTheme
 import com.kickstarter.ui.compose.designsystem.KSTheme.colors
 import com.kickstarter.ui.compose.designsystem.KSTheme.dimensions
-import com.kickstarter.ui.compose.designsystem.KSTheme.typography
+import com.kickstarter.ui.compose.designsystem.KSTheme.typographyV2
 import com.kickstarter.ui.compose.designsystem.KSWarningBadge
 import com.kickstarter.ui.compose.designsystem.shapes
 
@@ -196,16 +196,17 @@ fun PPOCardView(
                     sendAMessageClickAction = sendAMessageClickAction
                 )
 
-                if (viewType == PPOCardViewType.CONFIRM_ADDRESS && !shippingAddress.isNullOrEmpty()) {
+                if (viewType == PPOCardViewType.CONFIRM_ADDRESS) {
                     Spacer(modifier = Modifier.height(dimensions.paddingSmall))
 
                     ShippingAddressView(
-                        shippingAddress = shippingAddress
+                        shippingAddress = shippingAddress,
+                        onEditAddressClicked = onSecondaryActionButtonClicked
                     )
                 }
 
                 when (viewType) {
-                    PPOCardViewType.CONFIRM_ADDRESS -> ConfirmAddressButtonsView(!shippingAddress.isNullOrEmpty(), onActionButtonClicked, onSecondaryActionButtonClicked)
+                    PPOCardViewType.CONFIRM_ADDRESS -> ConfirmAddressButtonsView(!shippingAddress.isNullOrEmpty(), onActionButtonClicked)
                     PPOCardViewType.FIX_PAYMENT -> FixPaymentButtonView(onActionButtonClicked)
                     PPOCardViewType.AUTHENTICATE_CARD -> AuthenticateCardButtonView(onActionButtonClicked)
                     PPOCardViewType.OPEN_SURVEY -> TakeSurveyButtonView(onActionButtonClicked)
@@ -249,12 +250,11 @@ fun ProjectPledgeSummaryView(
         Column(
             modifier = Modifier
                 .weight(0.75f)
-                .height(dimensions.clickableButtonHeight)
         ) {
             Text(
                 text = projectName ?: "",
                 color = colors.textPrimary,
-                style = typography.footnoteMedium,
+                style = typographyV2.footNoteMedium,
                 overflow = TextOverflow.Ellipsis,
                 minLines = 1,
                 maxLines = 2
@@ -265,9 +265,16 @@ fun ProjectPledgeSummaryView(
             Text(
                 text = stringResource(id = R.string.Pledge_amount_pledged).format("pledge_amount", pledgeAmount),
                 color = colors.textSecondary,
-                style = typography.caption2
+                style = typographyV2.bodyXS
             )
         }
+
+        Image(
+            modifier = Modifier.padding(start = dimensions.paddingSmall),
+            imageVector = ImageVector.vectorResource(id = R.drawable.ic_chevron_rounded_right),
+            contentDescription = null,
+            colorFilter = ColorFilter.tint(color = colors.textSecondary)
+        )
     }
 }
 
@@ -279,95 +286,94 @@ fun CreatorNameSendMessageView(
     KSDividerLineGrey()
 
     Row(
-        Modifier
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
             .fillMaxWidth()
+            .padding(
+                start = dimensions.paddingMediumSmall,
+                end = dimensions.paddingXSmall
+            )
     ) {
+        Text(
+            text = stringResource(id = R.string.project_menu_created_by),
+            color = colors.textSecondary,
+            style = typographyV2.bodyXS
+        )
 
-        Row(
-            modifier = Modifier
-                .weight(0.7f)
-                .padding(
-                    top = dimensions.paddingMediumSmall,
-                    bottom = dimensions.paddingMediumSmall,
-                    start = dimensions.paddingMediumSmall,
-                    end = dimensions.paddingSmall
-                )
+        Text(
+            modifier = Modifier.weight(1f),
+            text = " ${creatorName.orEmpty()}",
+            overflow = TextOverflow.Ellipsis,
+            color = colors.textSecondary,
+            style = typographyV2.headingXS,
+            maxLines = 1
+        )
+
+        Box(
+            modifier = Modifier.width(dimensions.minButtonHeight).height(dimensions.minButtonHeight).clickable { sendAMessageClickAction.invoke() },
+            contentAlignment = Alignment.Center
         ) {
-            Text(
-                text = stringResource(id = R.string.project_menu_created_by),
-                color = colors.textSecondary,
-                style = typography.caption2
-            )
-
-            Text(
-                text = " ${creatorName.orEmpty()}",
-                overflow = TextOverflow.Ellipsis,
-                color = colors.textSecondary,
-                style = typography.caption2Medium,
-                maxLines = 1
-            )
-        }
-
-        Row(
-            modifier = Modifier
-                .weight(0.3f)
-                .padding(
-                    end = dimensions.paddingMediumSmall,
-                    top = dimensions.paddingMediumSmall,
-                    bottom = dimensions.paddingMediumSmall
-                )
-                .clickable { sendAMessageClickAction.invoke() }
-        ) {
-            Text(
-                text = stringResource(id = R.string.Send_a_message),
-                color = colors.textAccentGreen,
-                style = typography.caption2
-            )
-
             Image(
-                modifier = Modifier.size(dimensions.paddingMediumSmall),
-                imageVector = ImageVector.vectorResource(id = R.drawable.chevron_right),
+                imageVector = ImageVector.vectorResource(id = R.drawable.ic_envelope),
                 contentDescription = null,
-                colorFilter = ColorFilter.tint(color = colors.textAccentGreen)
+                colorFilter = ColorFilter.tint(color = colors.textSecondary)
             )
         }
     }
-
     KSDividerLineGrey()
 }
 
 @Composable
 fun ShippingAddressView(
-    shippingAddress: String? = null
+    shippingAddress: String? = null,
+    onEditAddressClicked: () -> Unit
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(dimensions.paddingSmall)
+            .padding(top = dimensions.paddingSmall, start = dimensions.paddingMediumSmall, end = dimensions.paddingXSmall)
             .testTag(PPOCardViewTestTag.SHIPPING_ADDRESS_VIEW.name),
     ) {
-        Text(
-            text = stringResource(id = R.string.Shipping_address),
-            modifier = Modifier
-                .weight(0.25f)
-                .height(dimensions.clickableButtonHeight)
-                .clip(shapes.small),
-            color = colors.textPrimary,
-            style = typography.caption1Medium,
-        )
+        if (!shippingAddress.isNullOrEmpty()) {
+            Text(
+                text = stringResource(id = R.string.Shipping_address),
+                modifier = Modifier
+                    .weight(0.25f)
+                    .height(dimensions.clickableButtonHeight)
+                    .clip(shapes.small),
+                color = colors.textPrimary,
+                style = typographyV2.headingSM,
+            )
+        }
 
         Spacer(modifier = Modifier.width(dimensions.paddingSmall))
 
-        Text(
-            text = shippingAddress ?: "",
-            modifier = Modifier
-                .weight(0.75f),
-            color = colors.textPrimary,
-            style = typography.caption1,
-            overflow = TextOverflow.Ellipsis,
-            minLines = 4,
-            maxLines = 6
-        )
+        Row(
+            modifier = Modifier.weight(0.75f)
+        ) {
+            if (!shippingAddress.isNullOrEmpty()) {
+                Text(
+                    text = shippingAddress,
+                    color = colors.textPrimary,
+                    style = typographyV2.bodySM,
+                    overflow = TextOverflow.Ellipsis,
+                    minLines = 4,
+                    maxLines = 6
+                )
+            }
+
+            Spacer(modifier = Modifier.width(dimensions.paddingSmall).weight(1f))
+            Box(
+                modifier = Modifier.width(dimensions.minButtonHeight).height(dimensions.minButtonHeight).clickable { onEditAddressClicked.invoke() }
+            ) {
+                Image(
+                    modifier = Modifier.padding(start = dimensions.paddingSmall),
+                    imageVector = ImageVector.vectorResource(id = R.drawable.ic_pencil),
+                    contentDescription = null,
+                    colorFilter = ColorFilter.tint(color = colors.textSecondary)
+                )
+            }
+        }
     }
 }
 
@@ -404,30 +410,20 @@ fun AlertFlagsView(flags: List<Flag?>) {
 }
 
 @Composable
-fun ConfirmAddressButtonsView(isConfirmButtonEnabled: Boolean, onEditAddressClicked: () -> Unit, onConfirmAddressClicked: () -> Unit) {
+fun ConfirmAddressButtonsView(isConfirmButtonEnabled: Boolean, onConfirmAddressClicked: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(dimensions.paddingSmall)
             .testTag(PPOCardViewTestTag.CONFIRM_ADDRESS_BUTTONS_VIEW.name)
     ) {
-        KSPrimaryBlackButton(
-            modifier = Modifier
-                .weight(0.5f),
-            onClickAction = { onEditAddressClicked.invoke() },
-            text = stringResource(id = R.string.Edit),
-            isEnabled = true,
-            textStyle = typography.buttonText
-        )
-        Spacer(modifier = Modifier.width(dimensions.paddingSmall))
 
         KSPrimaryGreenButton(
             modifier = Modifier
-                .weight(0.5f),
+                .weight(0.5f).padding(dimensions.paddingMediumSmall),
             onClickAction = { onConfirmAddressClicked.invoke() },
             text = stringResource(id = R.string.Confirm),
             isEnabled = isConfirmButtonEnabled,
-            textStyle = typography.buttonText
+            textStyle = typographyV2.buttonLabel
         )
     }
 }
@@ -439,7 +435,7 @@ fun FixPaymentButtonView(onFixPaymentClicked: () -> Unit) {
         onClickAction = { onFixPaymentClicked.invoke() },
         text = stringResource(id = R.string.Fix_payment),
         isEnabled = true,
-        textStyle = typography.buttonText
+        textStyle = typographyV2.buttonLabel
     )
 }
 
@@ -450,7 +446,7 @@ fun AuthenticateCardButtonView(onAuthenticateCardClicked: () -> Unit) {
         onClickAction = { onAuthenticateCardClicked.invoke() },
         text = stringResource(id = R.string.Authenticate_card),
         isEnabled = true,
-        textStyle = typography.buttonText
+        textStyle = typographyV2.buttonLabel
     )
 }
 
@@ -461,7 +457,7 @@ fun TakeSurveyButtonView(onAuthenticateCardClicked: () -> Unit) {
         onClickAction = { onAuthenticateCardClicked.invoke() },
         text = stringResource(id = R.string.Take_survey),
         isEnabled = true,
-        textStyle = typography.buttonText
+        textStyle = typographyV2.buttonLabel
     )
 }
 

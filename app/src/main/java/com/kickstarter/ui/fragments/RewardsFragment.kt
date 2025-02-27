@@ -1,5 +1,6 @@
 package com.kickstarter.ui.fragments
 
+import android.content.Context
 import android.os.Bundle
 import android.util.Pair
 import android.view.LayoutInflater
@@ -9,15 +10,19 @@ import androidx.appcompat.app.AlertDialog
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import coil.Coil
+import coil.request.ImageRequest
 import com.kickstarter.R
 import com.kickstarter.databinding.FragmentRewardsBinding
 import com.kickstarter.libs.Environment
 import com.kickstarter.libs.utils.extensions.getEnvironment
 import com.kickstarter.libs.utils.extensions.reduce
+import com.kickstarter.models.Reward
 import com.kickstarter.ui.activities.compose.projectpage.RewardCarouselScreen
 import com.kickstarter.ui.compose.designsystem.KSTheme
 import com.kickstarter.ui.compose.designsystem.KickstarterApp
@@ -68,6 +73,9 @@ class RewardsFragment : Fragment() {
                         val projectData = rewardSelectionUIState.project
                         val indexOfBackedReward = rewardSelectionUIState.initialRewardIndex
                         val rewards = shippingUIState.filteredRw
+
+                        preloadImages(LocalContext.current, rewards)
+
                         val project = projectData.project()
                         val backing = projectData.backing()
 
@@ -108,6 +116,19 @@ class RewardsFragment : Fragment() {
                         }
                     }
                 }
+            }
+        }
+    }
+
+    private fun preloadImages(context: Context, rewards: List<Reward>) {
+        val rewardsIterator = rewards.iterator()
+        while (rewardsIterator.hasNext()) {
+            val reward = rewardsIterator.next()
+            reward.image()?.let {
+                val request = ImageRequest.Builder(context)
+                    .data(reward.image()?.full())
+                    .build()
+                Coil.imageLoader(context).enqueue(request)
             }
         }
     }

@@ -3,33 +3,40 @@ package com.kickstarter.ui.compose
 import android.content.res.Configuration
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.paddingFromBaseline
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.material.Icon
+import androidx.compose.material.LocalTextStyle
 import androidx.compose.material.Text
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.text.ExperimentalTextApi
 import androidx.compose.ui.text.PlatformTextStyle
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.DeviceFontFamilyName
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.sp
 import androidx.constraintlayout.compose.ConstraintLayout
 import com.kickstarter.R
 import com.kickstarter.ui.compose.designsystem.KSTheme
 import com.kickstarter.ui.compose.designsystem.KSTheme.colors
-import com.kickstarter.ui.compose.designsystem.KSTheme.typography
+import com.kickstarter.ui.compose.designsystem.KSTheme.typographyV2
 import com.kickstarter.ui.compose.designsystem.kds_create_700
 import com.kickstarter.ui.compose.designsystem.kds_white
 
@@ -70,6 +77,12 @@ fun TitleTextPreview() {
                 Icons.Filled.LocationOn,
                 modifier = Modifier
             )
+
+            TextWithStartIcon(
+                text = "wow",
+                imageVector = ImageVector.vectorResource(id = R.drawable.icon__check_green),
+                modifier = Modifier.padding()
+            )
         }
     }
 }
@@ -82,7 +95,7 @@ fun TextH6ExtraBoldTitle(
 ) {
     Text(
         text = text,
-        style = typography.subheadline,
+        style = typographyV2.subHeadline,
         color = textColor,
         modifier = modifier
     )
@@ -98,7 +111,7 @@ fun TextBody1Title(
 ) {
     Text(
         text = text,
-        style = typography.body.copy(
+        style = typographyV2.body.copy(
             fontSize = fontSizeUnit
         ),
         color = textColor,
@@ -115,7 +128,7 @@ fun TextBody2Style(
 ) {
     Text(
         text = text,
-        style = typography.body2,
+        style = typographyV2.bodyMD,
         color = textColor,
         modifier = modifier
     )
@@ -125,7 +138,7 @@ fun TextBody2Style(
 fun TextWithKdsSupport700Bg(text: String, modifier: Modifier) {
     Text(
         text = text,
-        style = typography.caption1,
+        style = typographyV2.bodySM,
         color = kds_white,
         modifier = modifier
             .background(kds_create_700)
@@ -145,7 +158,7 @@ fun TextCaptionStyle(
 ) {
     Text(
         text = text,
-        style = typography.body.copy(
+        style = typographyV2.body.copy(
             fontSize = dimensionResource(id = R.dimen.caption_1).value.sp,
             fontFamily = FontFamily(
                 Font(DeviceFontFamilyName("sans-serif-medium"))
@@ -164,7 +177,7 @@ fun TextCaptionStyleWithStartIcon(
     text: String,
     imageVector: ImageVector,
     modifier: Modifier,
-    tintColor: Color = colors.kds_support_400
+    tintColor: Color = colors.kds_support_400,
 ) {
     ConstraintLayout(modifier = modifier) {
         val (
@@ -217,6 +230,34 @@ fun TextCaptionStyleWithStartIcon(
                 start.linkTo(icon.end)
             },
             tintColor
+        )
+    }
+}
+
+@Composable
+fun TextWithStartIcon(
+    text: String,
+    imageVector: ImageVector,
+    modifier: Modifier,
+    style: TextStyle = LocalTextStyle.current,
+    iconColor: Color = imageVector.tintColor,
+    textColor: Color = colors.kds_support_400,
+    iconHeight: Dp = dimensionResource(id = R.dimen.icon),
+    iconPadding: Dp = dimensionResource(id = R.dimen.grid_1)
+) {
+    Row(modifier = modifier) {
+        Icon(
+            imageVector = imageVector,
+            contentDescription = "null",
+            tint = iconColor,
+            modifier = Modifier.padding(end = iconPadding).height(iconHeight),
+        )
+
+        Text(
+            modifier = Modifier.align(Alignment.CenterVertically),
+            text = text,
+            color = textColor,
+            style = style
         )
     }
 }
